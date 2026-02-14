@@ -10,15 +10,17 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import '../../models/shooting_session.dart';
 import '../../providers/customer_provider.dart';
-import '../../providers/database_provider.dart';
+import '../../providers/firestore_provider.dart';
+import '../../providers/storage_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../utils/constants.dart';
 import '../../utils/face_guide_filter.dart';
 import 'widgets/face_guide_overlay.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
-  final int customerId;
-  final int sessionId;
+  final String customerId;
+  final String sessionId;
   final String shootingType; // 'before' or 'after'
 
   const CameraScreen({
@@ -318,44 +320,42 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       if (!mounted || _cameraController == null) return;
 
       final xFile = await _cameraController!.takePicture();
+      final imageFile = File(xFile.path);
 
-      // 바이트로 읽어서 직접 쓰기 (copy보다 안정적)
-      final imageBytes = await File(xFile.path).readAsBytes();
-      if (imageBytes.isEmpty) {
+      // 이미지 검증
+      if (!await imageFile.exists() || await imageFile.length() == 0) {
         throw Exception('촬영된 이미지가 비어있습니다');
       }
 
-      // 앱 디렉토리에 저장
-      final dir = await getApplicationDocumentsDirectory();
-      final imagesDir = Directory('${dir.path}/images');
-      if (!await imagesDir.exists()) {
-        await imagesDir.create(recursive: true);
+      // Firebase Storage에 업로드
+      final userId = ref.read(currentUserProvider)?.uid;
+      if (userId == null) {
+        throw Exception('로그인이 필요합니다');
       }
 
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = '${widget.shootingType}_${widget.sessionId}_$timestamp.jpg';
-      final savedPath = '${imagesDir.path}/$fileName';
+      final storage = ref.read(storageServiceProvider);
+      final imageUrl = await storage.uploadImage(
+        imageFile: imageFile,
+        userId: userId,
+        folder: widget.shootingType, // 'before' or 'after'
+        customFileName: '${widget.sessionId}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
 
-      await File(savedPath).writeAsBytes(imageBytes, flush: true);
+      // 임시 파일 삭제
+      await imageFile.delete();
 
-      // 저장 검증
-      final savedFile = File(savedPath);
-      if (!await savedFile.exists() || await savedFile.length() == 0) {
-        throw Exception('이미지 저장 검증 실패');
-      }
-
-      // DB 업데이트
-      final db = ref.read(databaseServiceProvider);
-      final session = await db.getSession(widget.sessionId);
+      // Firestore 업데이트
+      final firestore = ref.read(firestoreServiceProvider);
+      final session = await firestore.getSession(widget.sessionId);
 
       if (session != null) {
         ShootingSession updatedSession;
         if (widget.shootingType == 'before') {
-          updatedSession = session.copyWith(beforeImagePath: savedPath);
+          updatedSession = session.copyWith(beforeImageUrl: imageUrl);
         } else {
-          updatedSession = session.copyWith(afterImagePath: savedPath);
+          updatedSession = session.copyWith(afterImageUrl: imageUrl);
         }
-        await db.updateSession(updatedSession);
+        await firestore.updateSession(updatedSession);
 
         // Provider 갱신 (홈 화면에서 최신 데이터 표시)
         ref.invalidate(sessionListProvider(widget.customerId));
@@ -365,7 +365,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
             .updateLastShooting(widget.customerId);
 
         if (mounted) {
-          _showCaptureResult(savedPath, updatedSession);
+          _showCaptureResult(imageUrl, updatedSession);
         }
       }
     } catch (e) {
@@ -384,7 +384,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     }
   }
 
-  void _showCaptureResult(String imagePath, ShootingSession session) {
+  void _showCaptureResult(String imageUrl, ShootingSession session) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -395,10 +395,33 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.file(
-                File(imagePath),
+              child: Image.network(
+                imageUrl,
                 height: 300,
                 fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return SizedBox(
+                    height: 300,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                      ),
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 300,
+                    color: Colors.grey,
+                    child: const Center(
+                      child: Icon(Icons.error, color: Colors.red),
+                    ),
+                  );
+                },
               ),
             ),
             const SizedBox(height: 16),
@@ -414,7 +437,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              // 재촬영
+              // 재촬영 - 기존 이미지 삭제
+              final storage = ref.read(storageServiceProvider);
+              try {
+                await storage.deleteImageByUrl(imageUrl);
+              } catch (e) {
+                // 삭제 실패해도 계속 진행
+              }
               await _cameraController!.startImageStream(_processFrame);
               setState(() {
                 _isTakingPicture = false;
