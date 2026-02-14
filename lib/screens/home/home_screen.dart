@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,7 +6,9 @@ import '../../models/customer.dart';
 import '../../models/shooting_session.dart';
 import '../../providers/customer_provider.dart';
 import '../../providers/session_provider.dart';
-import '../../providers/database_provider.dart';
+import '../../providers/firestore_provider.dart';
+import '../../providers/storage_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -108,6 +109,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 }
               });
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              final authService = ref.read(authServiceProvider);
+              await authService.signOut();
+            },
+            tooltip: '로그아웃',
           ),
         ],
       ),
@@ -356,10 +365,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  Future<void> _startNewSession(int customerId) async {
-    final db = ref.read(databaseServiceProvider);
-    final session = ShootingSession(customerId: customerId);
-    final sessionId = await db.insertSession(session);
+  Future<void> _startNewSession(String customerId) async {
+    final userId = ref.read(currentUserProvider)?.uid;
+    if (userId == null) return;
+
+    final firestore = ref.read(firestoreServiceProvider);
+    final session = ShootingSession(
+      userId: userId,
+      customerId: customerId,
+    );
+    final sessionId = await firestore.addSession(session);
 
     if (mounted) {
       context.go('/camera/$customerId/$sessionId/before');
@@ -576,9 +591,15 @@ class _CustomerCard extends ConsumerWidget {
   }
 
   Future<void> _startNewSession(BuildContext context, WidgetRef ref) async {
-    final db = ref.read(databaseServiceProvider);
-    final session = ShootingSession(customerId: customer.id!);
-    final sessionId = await db.insertSession(session);
+    final userId = ref.read(currentUserProvider)?.uid;
+    if (userId == null) return;
+
+    final firestore = ref.read(firestoreServiceProvider);
+    final session = ShootingSession(
+      userId: userId,
+      customerId: customer.id!,
+    );
+    final sessionId = await firestore.addSession(session);
 
     await ref
         .read(customerListProvider.notifier)
@@ -617,15 +638,16 @@ class _CustomerCard extends ConsumerWidget {
     );
 
     if (confirmed == true) {
+      final storage = ref.read(storageServiceProvider);
+
+      // Delete images from Firebase Storage
       for (final session in sessions) {
-        if (session.beforeImagePath != null) {
-          final f = File(session.beforeImagePath!);
-          if (await f.exists()) await f.delete();
-        }
-        if (session.afterImagePath != null) {
-          final f = File(session.afterImagePath!);
-          if (await f.exists()) await f.delete();
-        }
+        await storage.deleteSessionImages(
+          beforeImageUrl: session.beforeImageUrl,
+          afterImageUrl: session.afterImageUrl,
+          alignedBeforeUrl: session.alignedBeforeUrl,
+          alignedAfterUrl: session.alignedAfterUrl,
+        );
       }
 
       await ref
@@ -665,14 +687,15 @@ class _CustomerCard extends ConsumerWidget {
     );
 
     if (confirmed == true) {
-      if (session.beforeImagePath != null) {
-        final f = File(session.beforeImagePath!);
-        if (await f.exists()) await f.delete();
-      }
-      if (session.afterImagePath != null) {
-        final f = File(session.afterImagePath!);
-        if (await f.exists()) await f.delete();
-      }
+      final storage = ref.read(storageServiceProvider);
+
+      // Delete images from Firebase Storage
+      await storage.deleteSessionImages(
+        beforeImageUrl: session.beforeImageUrl,
+        afterImageUrl: session.afterImageUrl,
+        alignedBeforeUrl: session.alignedBeforeUrl,
+        alignedAfterUrl: session.alignedAfterUrl,
+      );
 
       await ref
           .read(sessionListProvider(customer.id!).notifier)
