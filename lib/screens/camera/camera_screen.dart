@@ -48,6 +48,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   int? _countdown;
   Timer? _countdownTimer;
   bool _isTakingPicture = false;
+  Future<void>? _uploadFuture; // 업로드 완료 대기용
 
   // 흔들림 감지
   StreamSubscription? _accelerometerSubscription;
@@ -336,8 +337,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
         _showCaptureResultWithLocalImage(imageFile.path);
       }
 
-      // 백그라운드에서 Firebase 업로드 및 업데이트
-      _uploadImageInBackground(imageFile, userId);
+      // Firebase 업로드 시작 (Future 저장)
+      _uploadFuture = _uploadImageInBackground(imageFile, userId);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -408,12 +409,48 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
               child: const Text('나중에 After 촬영'),
             ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
+
               if (widget.shootingType == 'before') {
+                // Before → After 촬영: 바로 이동 (백그라운드 업로드)
                 context.go('/camera/${widget.customerId}/${widget.sessionId}/after');
               } else {
-                context.go('/comparison/${widget.sessionId}');
+                // After → 비교: 업로드 완료 대기
+                if (_uploadFuture != null) {
+                  // 업로드 중 표시
+                  if (mounted) {
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (context) => const Center(
+                        child: Card(
+                          child: Padding(
+                            padding: EdgeInsets.all(24.0),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircularProgressIndicator(),
+                                SizedBox(height: 16),
+                                Text('이미지 저장 중...'),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  await _uploadFuture;
+
+                  if (mounted) {
+                    Navigator.pop(context); // 로딩 다이얼로그 닫기
+                  }
+                }
+
+                if (mounted) {
+                  context.go('/comparison/${widget.sessionId}');
+                }
               }
             },
             child: Text(
