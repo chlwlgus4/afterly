@@ -314,7 +314,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     try {
       // 이미지 스트림 정지 후 카메라 안정화 대기
       await _cameraController!.stopImageStream();
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 200)); // 500ms → 200ms 단축
 
       if (!mounted || _cameraController == null) return;
 
@@ -326,47 +326,18 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
         throw Exception('촬영된 이미지가 비어있습니다');
       }
 
-      // Firebase Storage에 업로드
       final userId = ref.read(currentUserProvider)?.uid;
       if (userId == null) {
         throw Exception('로그인이 필요합니다');
       }
 
-      final storage = ref.read(storageServiceProvider);
-      final imageUrl = await storage.uploadImage(
-        imageFile: imageFile,
-        userId: userId,
-        folder: widget.shootingType, // 'before' or 'after'
-        customFileName: '${widget.sessionId}_${DateTime.now().millisecondsSinceEpoch}.jpg',
-      );
-
-      // 임시 파일 삭제
-      await imageFile.delete();
-
-      // Firestore 업데이트
-      final firestore = ref.read(firestoreServiceProvider);
-      final session = await firestore.getSession(widget.sessionId);
-
-      if (session != null) {
-        ShootingSession updatedSession;
-        if (widget.shootingType == 'before') {
-          updatedSession = session.copyWith(beforeImageUrl: imageUrl);
-        } else {
-          updatedSession = session.copyWith(afterImageUrl: imageUrl);
-        }
-        await firestore.updateSession(updatedSession);
-
-        // Provider 갱신 (홈 화면에서 최신 데이터 표시)
-        ref.invalidate(sessionListProvider(widget.customerId));
-
-        await ref
-            .read(customerListProvider.notifier)
-            .updateLastShooting(widget.customerId);
-
-        if (mounted) {
-          _showCaptureResult(imageUrl, updatedSession);
-        }
+      // 먼저 로컬 이미지로 결과 다이얼로그 표시 (빠른 UX)
+      if (mounted) {
+        _showCaptureResultWithLocalImage(imageFile.path);
       }
+
+      // 백그라운드에서 Firebase 업로드 및 업데이트
+      _uploadImageInBackground(imageFile, userId);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -383,7 +354,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     }
   }
 
-  void _showCaptureResult(String imageUrl, ShootingSession session) {
+  // 로컬 이미지로 빠르게 결과 표시
+  void _showCaptureResultWithLocalImage(String localPath) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -394,33 +366,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                imageUrl,
+              child: Image.file(
+                File(localPath),
                 height: 300,
                 fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return SizedBox(
-                    height: 300,
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                                loadingProgress.expectedTotalBytes!
-                            : null,
-                      ),
-                    ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    height: 300,
-                    color: Colors.grey,
-                    child: const Center(
-                      child: Icon(Icons.error, color: Colors.red),
-                    ),
-                  );
-                },
               ),
             ),
             const SizedBox(height: 16),
@@ -436,10 +385,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              // 재촬영 - 기존 이미지 삭제
-              final storage = ref.read(storageServiceProvider);
+              // 재촬영 - 로컬 파일 삭제
               try {
-                await storage.deleteImageByUrl(imageUrl);
+                await File(localPath).delete();
               } catch (e) {
                 // 삭제 실패해도 계속 진행
               }
@@ -462,7 +410,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              _navigateNext(session);
+              if (widget.shootingType == 'before') {
+                context.go('/camera/${widget.customerId}/${widget.sessionId}/after');
+              } else {
+                context.go('/comparison/${widget.sessionId}');
+              }
             },
             child: Text(
               widget.shootingType == 'before' ? 'After 바로 촬영' : '비교하기',
@@ -471,6 +423,43 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
         ],
       ),
     );
+  }
+
+  // 백그라운드에서 Firebase 업로드
+  Future<void> _uploadImageInBackground(File imageFile, String userId) async {
+    try {
+      final storage = ref.read(storageServiceProvider);
+      final imageUrl = await storage.uploadImage(
+        imageFile: imageFile,
+        userId: userId,
+        folder: widget.shootingType,
+        customFileName: '${widget.sessionId}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+
+      // 임시 파일 삭제
+      await imageFile.delete();
+
+      // Firestore 업데이트
+      final firestore = ref.read(firestoreServiceProvider);
+      final session = await firestore.getSession(widget.sessionId);
+
+      if (session != null) {
+        ShootingSession updatedSession;
+        if (widget.shootingType == 'before') {
+          updatedSession = session.copyWith(beforeImageUrl: imageUrl);
+        } else {
+          updatedSession = session.copyWith(afterImageUrl: imageUrl);
+        }
+        await firestore.updateSession(updatedSession);
+
+        // Provider 갱신
+        ref.invalidate(sessionListProvider(widget.customerId));
+        await ref.read(customerListProvider.notifier).updateLastShooting(widget.customerId);
+      }
+    } catch (e) {
+      debugPrint('백그라운드 업로드 실패: $e');
+      // 업로드 실패는 조용히 처리 (사용자는 이미 다음 화면으로 이동)
+    }
   }
 
   void _navigateNext(ShootingSession session) {
