@@ -18,9 +18,9 @@ class FaceGuidePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
-    final cy = size.height * 0.40;
-    final w = size.width * 0.62;
-    final h = size.height * 0.42;
+    final cy = size.height * 0.42;  // 중심 위치 약간 아래로 조정
+    final w = size.width * 0.50;    // 너비 축소 (0.62 → 0.50)
+    final h = size.height * 0.35;   // 높이 축소 (0.42 → 0.35)
 
     final facePath = _buildFacePath(cx, cy, w, h);
 
