@@ -56,7 +56,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
     if (session == null) {
       setState(() {
         _isLoading = false;
-        _errorMessage = '세션을 찾을 수 없습니다';
+        _errorMessage = '촬영 기록을 찾을 수 없습니다.\n기록이 삭제되었을 수 있습니다.';
       });
       return;
     }
@@ -69,8 +69,8 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
         _session = session;
         _isLoading = false;
         _errorMessage = !hasBeforeImage
-            ? 'Before 이미지를 찾을 수 없습니다'
-            : 'After 이미지를 찾을 수 없습니다';
+            ? 'Before 이미지를 찾을 수 없습니다.\n홈에서 새로 촬영해주세요.'
+            : 'After 이미지를 찾을 수 없습니다.\n촬영을 완료해주세요.';
       });
       return;
     }

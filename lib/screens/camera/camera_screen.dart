@@ -428,6 +428,17 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   // 백그라운드에서 Firebase 업로드
   Future<void> _uploadImageInBackground(File imageFile, String userId) async {
     try {
+      // 먼저 세션이 존재하는지 확인
+      final firestore = ref.read(firestoreServiceProvider);
+      final session = await firestore.getSession(widget.sessionId);
+
+      if (session == null) {
+        // 세션이 삭제되었으면 업로드하지 않고 로컬 파일만 삭제
+        debugPrint('세션이 삭제되어 업로드를 건너뜁니다: ${widget.sessionId}');
+        await imageFile.delete();
+        return;
+      }
+
       final storage = ref.read(storageServiceProvider);
       final imageUrl = await storage.uploadImage(
         imageFile: imageFile,
@@ -439,26 +450,39 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       // 임시 파일 삭제
       await imageFile.delete();
 
-      // Firestore 업데이트
-      final firestore = ref.read(firestoreServiceProvider);
-      final session = await firestore.getSession(widget.sessionId);
-
-      if (session != null) {
-        ShootingSession updatedSession;
-        if (widget.shootingType == 'before') {
-          updatedSession = session.copyWith(beforeImageUrl: imageUrl);
-        } else {
-          updatedSession = session.copyWith(afterImageUrl: imageUrl);
+      // 다시 한 번 세션 확인 (업로드 중에 삭제될 수 있음)
+      final sessionCheck = await firestore.getSession(widget.sessionId);
+      if (sessionCheck == null) {
+        debugPrint('업로드 중 세션이 삭제됨: ${widget.sessionId}');
+        // 이미 업로드된 이미지 삭제
+        try {
+          await storage.deleteImageByUrl(imageUrl);
+        } catch (e) {
+          debugPrint('이미지 삭제 실패: $e');
         }
-        await firestore.updateSession(updatedSession);
+        return;
+      }
 
-        // Provider 갱신
+      // Firestore 업데이트
+      ShootingSession updatedSession;
+      if (widget.shootingType == 'before') {
+        updatedSession = sessionCheck.copyWith(beforeImageUrl: imageUrl);
+      } else {
+        updatedSession = sessionCheck.copyWith(afterImageUrl: imageUrl);
+      }
+      await firestore.updateSession(updatedSession);
+
+      // Provider 갱신
+      if (mounted) {
         ref.invalidate(sessionListProvider(widget.customerId));
         await ref.read(customerListProvider.notifier).updateLastShooting(widget.customerId);
       }
     } catch (e) {
       debugPrint('백그라운드 업로드 실패: $e');
-      // 업로드 실패는 조용히 처리 (사용자는 이미 다음 화면으로 이동)
+      // 임시 파일 정리 시도
+      try {
+        await imageFile.delete();
+      } catch (_) {}
     }
   }
 

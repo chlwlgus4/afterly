@@ -44,7 +44,27 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     if (_session == null || !_session!.hasAnalysis) {
       return Scaffold(
         appBar: AppBar(title: const Text('분석 결과')),
-        body: const Center(child: Text('분석 데이터가 없습니다')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+              const SizedBox(height: 16),
+              Text(
+                _session == null
+                    ? '촬영 기록을 찾을 수 없습니다.\n기록이 삭제되었을 수 있습니다.'
+                    : '분석 데이터가 없습니다.\n비교 화면에서 분석을 먼저 진행해주세요.',
+                style: AppTextStyles.body,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => context.go('/'),
+                child: const Text('홈으로'),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
