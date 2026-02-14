@@ -1,13 +1,12 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/shooting_session.dart';
-import '../../providers/database_provider.dart';
+import '../../providers/firestore_provider.dart';
 import '../../utils/constants.dart';
 
 class AnalysisScreen extends ConsumerStatefulWidget {
-  final int sessionId;
+  final String sessionId;
 
   const AnalysisScreen({super.key, required this.sessionId});
 
@@ -26,8 +25,8 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
   }
 
   Future<void> _loadSession() async {
-    final db = ref.read(databaseServiceProvider);
-    final session = await db.getSession(widget.sessionId);
+    final firestore = ref.read(firestoreServiceProvider);
+    final session = await firestore.getSession(widget.sessionId);
     setState(() {
       _session = session;
       _isLoading = false;
@@ -144,17 +143,27 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
       height: 200,
       child: Row(
         children: [
-          if (_session!.beforeImagePath != null)
+          if (_session!.beforeImageUrl != null)
             Expanded(
               child: Column(
                 children: [
                   Expanded(
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.file(
-                        File(_session!.beforeImagePath!),
+                      child: Image.network(
+                        _session!.beforeImageUrl!,
                         fit: BoxFit.cover,
                         width: double.infinity,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return const Center(child: CircularProgressIndicator());
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: Colors.grey,
+                            child: const Icon(Icons.error),
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -164,17 +173,27 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
               ),
             ),
           const SizedBox(width: 12),
-          if (_session!.afterImagePath != null)
+          if (_session!.afterImageUrl != null)
             Expanded(
               child: Column(
                 children: [
                   Expanded(
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.file(
-                        File(_session!.afterImagePath!),
+                      child: Image.network(
+                        _session!.afterImageUrl!,
                         fit: BoxFit.cover,
                         width: double.infinity,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return const Center(child: CircularProgressIndicator());
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: Colors.grey,
+                            child: const Icon(Icons.error),
+                          );
+                        },
                       ),
                     ),
                   ),
