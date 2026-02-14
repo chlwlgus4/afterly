@@ -1,10 +1,11 @@
 class ShootingSession {
-  final int? id;
-  final int customerId;
-  final String? beforeImagePath;
-  final String? afterImagePath;
-  final String? alignedBeforePath;
-  final String? alignedAfterPath;
+  final String? id; // Firestore document ID
+  final String userId; // Firebase Auth user ID
+  final String customerId; // Customer document ID
+  final String? beforeImageUrl; // Changed from path to URL (Firebase Storage)
+  final String? afterImageUrl; // Changed from path to URL (Firebase Storage)
+  final String? alignedBeforeUrl; // Changed from path to URL
+  final String? alignedAfterUrl; // Changed from path to URL
   final double? jawlineScore;
   final double? symmetryScore;
   final double? skinToneScore;
@@ -13,11 +14,12 @@ class ShootingSession {
 
   ShootingSession({
     this.id,
+    required this.userId,
     required this.customerId,
-    this.beforeImagePath,
-    this.afterImagePath,
-    this.alignedBeforePath,
-    this.alignedAfterPath,
+    this.beforeImageUrl,
+    this.afterImageUrl,
+    this.alignedBeforeUrl,
+    this.alignedAfterUrl,
     this.jawlineScore,
     this.symmetryScore,
     this.skinToneScore,
@@ -27,12 +29,12 @@ class ShootingSession {
 
   Map<String, dynamic> toMap() {
     return {
-      if (id != null) 'id': id,
+      'userId': userId,
       'customerId': customerId,
-      'beforeImagePath': beforeImagePath,
-      'afterImagePath': afterImagePath,
-      'alignedBeforePath': alignedBeforePath,
-      'alignedAfterPath': alignedAfterPath,
+      'beforeImageUrl': beforeImageUrl,
+      'afterImageUrl': afterImageUrl,
+      'alignedBeforeUrl': alignedBeforeUrl,
+      'alignedAfterUrl': alignedAfterUrl,
       'jawlineScore': jawlineScore,
       'symmetryScore': symmetryScore,
       'skinToneScore': skinToneScore,
@@ -41,14 +43,15 @@ class ShootingSession {
     };
   }
 
-  factory ShootingSession.fromMap(Map<String, dynamic> map) {
+  factory ShootingSession.fromMap(Map<String, dynamic> map, {String? documentId}) {
     return ShootingSession(
-      id: map['id'] as int?,
-      customerId: map['customerId'] as int,
-      beforeImagePath: map['beforeImagePath'] as String?,
-      afterImagePath: map['afterImagePath'] as String?,
-      alignedBeforePath: map['alignedBeforePath'] as String?,
-      alignedAfterPath: map['alignedAfterPath'] as String?,
+      id: documentId,
+      userId: map['userId'] as String,
+      customerId: map['customerId'] as String,
+      beforeImageUrl: map['beforeImageUrl'] as String?,
+      afterImageUrl: map['afterImageUrl'] as String?,
+      alignedBeforeUrl: map['alignedBeforeUrl'] as String?,
+      alignedAfterUrl: map['alignedAfterUrl'] as String?,
       jawlineScore: (map['jawlineScore'] as num?)?.toDouble(),
       symmetryScore: (map['symmetryScore'] as num?)?.toDouble(),
       skinToneScore: (map['skinToneScore'] as num?)?.toDouble(),
@@ -58,12 +61,13 @@ class ShootingSession {
   }
 
   ShootingSession copyWith({
-    int? id,
-    int? customerId,
-    String? beforeImagePath,
-    String? afterImagePath,
-    String? alignedBeforePath,
-    String? alignedAfterPath,
+    String? id,
+    String? userId,
+    String? customerId,
+    String? beforeImageUrl,
+    String? afterImageUrl,
+    String? alignedBeforeUrl,
+    String? alignedAfterUrl,
     double? jawlineScore,
     double? symmetryScore,
     double? skinToneScore,
@@ -72,11 +76,12 @@ class ShootingSession {
   }) {
     return ShootingSession(
       id: id ?? this.id,
+      userId: userId ?? this.userId,
       customerId: customerId ?? this.customerId,
-      beforeImagePath: beforeImagePath ?? this.beforeImagePath,
-      afterImagePath: afterImagePath ?? this.afterImagePath,
-      alignedBeforePath: alignedBeforePath ?? this.alignedBeforePath,
-      alignedAfterPath: alignedAfterPath ?? this.alignedAfterPath,
+      beforeImageUrl: beforeImageUrl ?? this.beforeImageUrl,
+      afterImageUrl: afterImageUrl ?? this.afterImageUrl,
+      alignedBeforeUrl: alignedBeforeUrl ?? this.alignedBeforeUrl,
+      alignedAfterUrl: alignedAfterUrl ?? this.alignedAfterUrl,
       jawlineScore: jawlineScore ?? this.jawlineScore,
       symmetryScore: symmetryScore ?? this.symmetryScore,
       skinToneScore: skinToneScore ?? this.skinToneScore,
@@ -85,8 +90,8 @@ class ShootingSession {
     );
   }
 
-  bool get hasBeforeImage => beforeImagePath != null;
-  bool get hasAfterImage => afterImagePath != null;
+  bool get hasBeforeImage => beforeImageUrl != null;
+  bool get hasAfterImage => afterImageUrl != null;
   bool get isComplete => hasBeforeImage && hasAfterImage;
   bool get hasAnalysis => jawlineScore != null;
 }
