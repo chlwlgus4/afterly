@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/customer.dart';
-import 'database_provider.dart';
+import 'firestore_provider.dart';
+import 'auth_provider.dart';
 
 final customerListProvider =
     AsyncNotifierProvider<CustomerListNotifier, List<Customer>>(
@@ -10,29 +11,41 @@ final customerListProvider =
 class CustomerListNotifier extends AsyncNotifier<List<Customer>> {
   @override
   Future<List<Customer>> build() async {
-    final db = ref.read(databaseServiceProvider);
-    return db.getCustomers();
+    final userId = ref.watch(currentUserProvider)?.uid;
+    if (userId == null) return [];
+
+    final firestore = ref.read(firestoreServiceProvider);
+    return firestore.getCustomers(userId);
   }
 
-  Future<int> addCustomer(String name) async {
-    final db = ref.read(databaseServiceProvider);
-    final customer = Customer(name: name);
-    final id = await db.insertCustomer(customer);
+  Future<String> addCustomer(String name) async {
+    final userId = ref.read(currentUserProvider)?.uid;
+    if (userId == null) throw Exception('User not logged in');
+
+    final firestore = ref.read(firestoreServiceProvider);
+    final customer = Customer(
+      userId: userId,
+      name: name,
+    );
+    final id = await firestore.addCustomer(customer);
     ref.invalidateSelf();
     return id;
   }
 
-  Future<void> deleteCustomer(int id) async {
-    final db = ref.read(databaseServiceProvider);
-    await db.deleteCustomer(id);
+  Future<void> deleteCustomer(String id) async {
+    final userId = ref.read(currentUserProvider)?.uid;
+    if (userId == null) throw Exception('User not logged in');
+
+    final firestore = ref.read(firestoreServiceProvider);
+    await firestore.deleteCustomer(id, userId);
     ref.invalidateSelf();
   }
 
-  Future<void> updateLastShooting(int customerId) async {
-    final db = ref.read(databaseServiceProvider);
-    final customer = await db.getCustomer(customerId);
+  Future<void> updateLastShooting(String customerId) async {
+    final firestore = ref.read(firestoreServiceProvider);
+    final customer = await firestore.getCustomer(customerId);
     if (customer != null) {
-      await db.updateCustomer(
+      await firestore.updateCustomer(
         customer.copyWith(lastShootingAt: DateTime.now()),
       );
       ref.invalidateSelf();

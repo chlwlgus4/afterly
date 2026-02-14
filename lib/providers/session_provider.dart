@@ -1,37 +1,44 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/shooting_session.dart';
-import 'database_provider.dart';
+import 'firestore_provider.dart';
+import 'auth_provider.dart';
 
 final sessionListProvider =
-    AsyncNotifierProvider.family<SessionListNotifier, List<ShootingSession>, int>(
+    AsyncNotifierProvider.family<SessionListNotifier, List<ShootingSession>, String>(
   SessionListNotifier.new,
 );
 
 class SessionListNotifier
-    extends FamilyAsyncNotifier<List<ShootingSession>, int> {
+    extends FamilyAsyncNotifier<List<ShootingSession>, String> {
   @override
-  Future<List<ShootingSession>> build(int arg) async {
-    final db = ref.read(databaseServiceProvider);
-    return db.getSessionsForCustomer(arg);
+  Future<List<ShootingSession>> build(String arg) async {
+    final firestore = ref.read(firestoreServiceProvider);
+    return firestore.getSessionsForCustomer(arg);
   }
 
-  Future<int> createSession() async {
-    final db = ref.read(databaseServiceProvider);
-    final session = ShootingSession(customerId: arg);
-    final id = await db.insertSession(session);
+  Future<String> createSession() async {
+    final userId = ref.read(currentUserProvider)?.uid;
+    if (userId == null) throw Exception('User not logged in');
+
+    final firestore = ref.read(firestoreServiceProvider);
+    final session = ShootingSession(
+      userId: userId,
+      customerId: arg,
+    );
+    final id = await firestore.addSession(session);
     ref.invalidateSelf();
     return id;
   }
 
   Future<void> updateSession(ShootingSession session) async {
-    final db = ref.read(databaseServiceProvider);
-    await db.updateSession(session);
+    final firestore = ref.read(firestoreServiceProvider);
+    await firestore.updateSession(session);
     ref.invalidateSelf();
   }
 
-  Future<void> deleteSession(int sessionId) async {
-    final db = ref.read(databaseServiceProvider);
-    await db.deleteSession(sessionId);
+  Future<void> deleteSession(String sessionId) async {
+    final firestore = ref.read(firestoreServiceProvider);
+    await firestore.deleteSession(sessionId);
     ref.invalidateSelf();
   }
 }
@@ -45,14 +52,14 @@ class CurrentSessionNotifier extends AsyncNotifier<ShootingSession?> {
   @override
   Future<ShootingSession?> build() async => null;
 
-  Future<void> loadSession(int sessionId) async {
-    final db = ref.read(databaseServiceProvider);
-    state = AsyncData(await db.getSession(sessionId));
+  Future<void> loadSession(String sessionId) async {
+    final firestore = ref.read(firestoreServiceProvider);
+    state = AsyncData(await firestore.getSession(sessionId));
   }
 
   Future<void> updateSession(ShootingSession session) async {
-    final db = ref.read(databaseServiceProvider);
-    await db.updateSession(session);
+    final firestore = ref.read(firestoreServiceProvider);
+    await firestore.updateSession(session);
     state = AsyncData(session);
   }
 

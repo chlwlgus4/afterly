@@ -2,19 +2,53 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'screens/splash/splash_screen.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/auth/signup_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/camera/camera_screen.dart';
 import 'screens/comparison/comparison_screen.dart';
 import 'screens/analysis/analysis_screen.dart';
+import 'providers/auth_provider.dart';
 import 'utils/constants.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
+  final authState = ref.watch(authStateProvider);
+
   return GoRouter(
     initialLocation: '/splash',
+    redirect: (context, state) {
+      final isLoggedIn = authState.valueOrNull != null;
+      final isLoginRoute = state.matchedLocation == '/login' ||
+          state.matchedLocation == '/signup';
+      final isSplashRoute = state.matchedLocation == '/splash';
+
+      // Allow splash screen to show first
+      if (isSplashRoute) return null;
+
+      // Redirect to login if not logged in and not already on login/signup
+      if (!isLoggedIn && !isLoginRoute) {
+        return '/login';
+      }
+
+      // Redirect to home if logged in and on login/signup
+      if (isLoggedIn && isLoginRoute) {
+        return '/';
+      }
+
+      return null;
+    },
     routes: [
       GoRoute(
         path: '/splash',
         builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/signup',
+        builder: (context, state) => const SignUpScreen(),
       ),
       GoRoute(
         path: '/',
@@ -23,8 +57,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/camera/:customerId/:sessionId/:type',
         builder: (context, state) {
-          final customerId = int.parse(state.pathParameters['customerId']!);
-          final sessionId = int.parse(state.pathParameters['sessionId']!);
+          final customerId = state.pathParameters['customerId']!;
+          final sessionId = state.pathParameters['sessionId']!;
           final type = state.pathParameters['type']!; // 'before' or 'after'
           return CameraScreen(
             key: ValueKey('camera_${type}_$sessionId'),
@@ -37,14 +71,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/comparison/:sessionId',
         builder: (context, state) {
-          final sessionId = int.parse(state.pathParameters['sessionId']!);
+          final sessionId = state.pathParameters['sessionId']!;
           return ComparisonScreen(sessionId: sessionId);
         },
       ),
       GoRoute(
         path: '/analysis/:sessionId',
         builder: (context, state) {
-          final sessionId = int.parse(state.pathParameters['sessionId']!);
+          final sessionId = state.pathParameters['sessionId']!;
           return AnalysisScreen(sessionId: sessionId);
         },
       ),
