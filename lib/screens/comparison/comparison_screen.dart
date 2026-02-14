@@ -1,17 +1,16 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/shooting_session.dart';
-import '../../providers/database_provider.dart';
+import '../../providers/firestore_provider.dart';
 import '../../services/image_analysis_service.dart';
 import '../../services/image_export_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/face_guide_painter.dart';
 
 class ComparisonScreen extends ConsumerStatefulWidget {
-  final int sessionId;
+  final String sessionId;
 
   const ComparisonScreen({super.key, required this.sessionId});
 
@@ -51,8 +50,8 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
   }
 
   Future<void> _loadSession() async {
-    final db = ref.read(databaseServiceProvider);
-    final session = await db.getSession(widget.sessionId);
+    final firestore = ref.read(firestoreServiceProvider);
+    final session = await firestore.getSession(widget.sessionId);
 
     if (session == null) {
       setState(() {
@@ -62,16 +61,14 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
       return;
     }
 
-    final beforeExists = session.beforeImagePath != null &&
-        await File(session.beforeImagePath!).exists();
-    final afterExists = session.afterImagePath != null &&
-        await File(session.afterImagePath!).exists();
+    final hasBeforeImage = session.beforeImageUrl != null && session.beforeImageUrl!.isNotEmpty;
+    final hasAfterImage = session.afterImageUrl != null && session.afterImageUrl!.isNotEmpty;
 
-    if (!beforeExists || !afterExists) {
+    if (!hasBeforeImage || !hasAfterImage) {
       setState(() {
         _session = session;
         _isLoading = false;
-        _errorMessage = !beforeExists
+        _errorMessage = !hasBeforeImage
             ? 'Before 이미지를 찾을 수 없습니다'
             : 'After 이미지를 찾을 수 없습니다';
       });
