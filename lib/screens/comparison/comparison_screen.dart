@@ -316,8 +316,8 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
         child: CustomPaint(
           painter: FaceGuidePainter(
             color: AppColors.guideOk,
-            opacity: 0.8,
-            strokeWidth: 3.0,
+            opacity: 0.6,          // 0.8 → 0.6 (카메라와 동일)
+            strokeWidth: 3.5,      // 3.0 → 3.5 (카메라와 동일)
             showGlow: true,
           ),
         ),
