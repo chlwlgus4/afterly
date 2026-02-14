@@ -229,7 +229,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                // Remember Me Checkbox
+                // Remember Me Checkbox & Forgot Password
                 Row(
                   children: [
                     Checkbox(
@@ -241,6 +241,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             },
                     ),
                     const Text('아이디 저장'),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: _isLoading ? null : () => context.push('/password-reset'),
+                      child: const Text(
+                        '비밀번호 찾기',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),

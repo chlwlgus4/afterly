@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'screens/auth/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
+import 'screens/auth/password_reset_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/camera/camera_screen.dart';
 import 'screens/comparison/comparison_screen.dart';
@@ -49,6 +50,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/signup',
         builder: (context, state) => const SignUpScreen(),
+      ),
+      GoRoute(
+        path: '/password-reset',
+        builder: (context, state) => const PasswordResetScreen(),
       ),
       GoRoute(
         path: '/',
