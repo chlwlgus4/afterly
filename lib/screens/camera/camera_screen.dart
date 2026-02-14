@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import '../../models/shooting_session.dart';
 import '../../providers/customer_provider.dart';

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 
 class StorageService {
@@ -102,7 +103,7 @@ class StorageService {
         await deleteImageByUrl(url);
       } catch (e) {
         // Continue deleting other images even if one fails
-        print('Failed to delete image $url: $e');
+        debugPrint('Failed to delete image $url: $e');
       }
     }
   }

@@ -98,20 +98,20 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
     try {
       final service = ImageAnalysisService();
       final result = await service.analyze(
-        beforePath: _session!.beforeImagePath!,
-        afterPath: _session!.afterImagePath!,
+        beforePath: _session!.beforeImageUrl!,
+        afterPath: _session!.afterImageUrl!,
       );
 
       _analysisTimer?.cancel();
 
-      final db = ref.read(databaseServiceProvider);
+      final firestore = ref.read(firestoreServiceProvider);
       final updatedSession = _session!.copyWith(
         jawlineScore: result.jawlineScore,
         symmetryScore: result.symmetryScore,
         skinToneScore: result.skinToneScore,
         summary: result.summary,
       );
-      await db.updateSession(updatedSession);
+      await firestore.updateSession(updatedSession);
 
       if (mounted) {
         setState(() => _isAnalyzing = false);
@@ -174,17 +174,17 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
     try {
       if (choice == 'both') {
         await ImageExportService.saveComparison(
-          beforePath: _session!.beforeImagePath!,
-          afterPath: _session!.afterImagePath!,
+          beforePath: _session!.beforeImageUrl!,
+          afterPath: _session!.afterImageUrl!,
         );
       } else if (choice == 'before') {
         await ImageExportService.saveSingle(
-          imagePath: _session!.beforeImagePath!,
+          imagePath: _session!.beforeImageUrl!,
           label: 'BEFORE',
         );
       } else {
         await ImageExportService.saveSingle(
-          imagePath: _session!.afterImagePath!,
+          imagePath: _session!.afterImageUrl!,
           label: 'AFTER',
         );
       }
@@ -347,8 +347,8 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
             fit: StackFit.expand,
             children: [
               // After 이미지 (전체 배경)
-              Image.file(
-                File(_session!.afterImagePath!),
+              Image.network(
+                _session!.afterImageUrl!,
                 fit: BoxFit.contain,
                 width: width,
                 height: height,
@@ -358,8 +358,8 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                 clipper: _SliderClipper(_sliderPosition),
                 child: Transform.translate(
                   offset: Offset(0, _beforeVerticalOffset),
-                  child: Image.file(
-                    File(_session!.beforeImagePath!),
+                  child: Image.network(
+                    _session!.beforeImageUrl!,
                     fit: BoxFit.contain,
                     width: width,
                     height: height,
@@ -464,12 +464,10 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
           // 이미지
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
-            child: Image.file(
-              File(
-                _showBefore
-                    ? _session!.beforeImagePath!
-                    : _session!.afterImagePath!,
-              ),
+            child: Image.network(
+              _showBefore
+                  ? _session!.beforeImageUrl!
+                  : _session!.afterImageUrl!,
               key: ValueKey(_showBefore),
               fit: BoxFit.contain,
             ),
@@ -534,8 +532,8 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
       fit: StackFit.expand,
       children: [
         // After 이미지 (배경)
-        Image.file(
-          File(_session!.afterImagePath!),
+        Image.network(
+          _session!.afterImageUrl!,
           fit: BoxFit.contain,
         ),
         // Before 오버레이
@@ -549,15 +547,15 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                     0, 0, -1, 0, 255,
                     0, 0, 0, 1, 0,
                   ]),
-                  child: Image.file(
-                    File(_session!.beforeImagePath!),
+                  child: Image.network(
+                    _session!.beforeImageUrl!,
                     fit: BoxFit.contain,
                     color: Colors.white,
                     colorBlendMode: BlendMode.difference,
                   ),
                 )
-              : Image.file(
-                  File(_session!.beforeImagePath!),
+              : Image.network(
+                  _session!.beforeImageUrl!,
                   fit: BoxFit.contain,
                   color: AppColors.primary.withValues(alpha: 0.4),
                   colorBlendMode: BlendMode.color,

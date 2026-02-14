@@ -1,8 +1,10 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
 
 class ImageExportService {
   /// Before/After 이미지를 나란히 합성 + 워터마크 → 갤러리 저장
@@ -123,10 +125,25 @@ class ImageExportService {
   }
 
   static Future<ui.Image> _loadImage(String path) async {
-    final bytes = await File(path).readAsBytes();
+    // URL인지 로컬 파일인지 확인
+    final isUrl = path.startsWith('http');
+
+    final bytes = isUrl
+        ? await _downloadImage(path)
+        : await File(path).readAsBytes();
+
     final codec = await ui.instantiateImageCodec(bytes);
     final frame = await codec.getNextFrame();
     return frame.image;
+  }
+
+  /// URL에서 이미지 다운로드
+  static Future<Uint8List> _downloadImage(String url) async {
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to download image from $url');
+    }
+    return response.bodyBytes;
   }
 
   static void _drawLabel(Canvas canvas, String text, Rect area, Color color) {

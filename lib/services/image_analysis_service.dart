@@ -1,8 +1,8 @@
-import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
+import 'package:http/http.dart' as http;
 
 class AnalysisResult {
   final double jawlineScore;
@@ -19,19 +19,43 @@ class AnalysisResult {
 }
 
 class ImageAnalysisService {
-  /// Before/After 이미지를 Isolate에서 분석
+  /// Before/After 이미지를 Isolate에서 분석 (URL 또는 로컬 경로)
   Future<AnalysisResult> analyze({
     required String beforePath,
     required String afterPath,
   }) async {
-    final beforeBytes = await File(beforePath).readAsBytes();
-    final afterBytes = await File(afterPath).readAsBytes();
+    // URL인지 확인
+    final isBeforeUrl = beforePath.startsWith('http');
+    final isAfterUrl = afterPath.startsWith('http');
+
+    // 이미지 바이트 가져오기
+    final beforeBytes = isBeforeUrl
+        ? await _downloadImage(beforePath)
+        : await _readLocalImage(beforePath);
+    final afterBytes = isAfterUrl
+        ? await _downloadImage(afterPath)
+        : await _readLocalImage(afterPath);
 
     final result = await Isolate.run(() {
       return _analyzeInIsolate(beforeBytes, afterBytes);
     });
 
     return result;
+  }
+
+  /// URL에서 이미지 다운로드
+  Future<Uint8List> _downloadImage(String url) async {
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to download image from $url');
+    }
+    return response.bodyBytes;
+  }
+
+  /// 로컬 파일 읽기 (하위 호환성)
+  Future<Uint8List> _readLocalImage(String path) async {
+    // Firebase로 완전히 전환된 후에는 이 부분이 필요 없을 수 있음
+    throw UnimplementedError('Local file reading not supported. Use URLs instead.');
   }
 
   /// Isolate 안에서 실행되는 분석 로직
