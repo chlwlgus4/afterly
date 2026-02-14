@@ -1,1 +1,33 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"afterly-app","appId":"1:189389362900:android:9e7428bdbab05a9b94cd41","fileOutput":"android/app/google-services.json"}},"ios":{"default":{"projectId":"afterly-app","appId":"1:189389362900:ios:6664c8cf23dee55294cd41","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"afterly-app","configurations":{"android":"1:189389362900:android:9e7428bdbab05a9b94cd41","ios":"1:189389362900:ios:6664c8cf23dee55294cd41"}}}}}}
+{
+  "firestore": {
+    "indexes": "firestore.indexes.json"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "afterly-app",
+          "appId": "1:189389362900:android:9e7428bdbab05a9b94cd41",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "afterly-app",
+          "appId": "1:189389362900:ios:6664c8cf23dee55294cd41",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "afterly-app",
+          "configurations": {
+            "android": "1:189389362900:android:9e7428bdbab05a9b94cd41",
+            "ios": "1:189389362900:ios:6664c8cf23dee55294cd41"
+          }
+        }
+      }
+    }
+  }
+}

@@ -59,5 +59,18 @@
 		<true/>
 		<key>UIStatusBarHidden</key>
 		<false/>
+        <!-- Google Sign-In URL Scheme -->
+        <key>CFBundleURLTypes</key>
+        <array>
+            <dict>
+                <key>CFBundleTypeRole</key>
+                <string>Editor</string>
+                <key>CFBundleURLSchemes</key>
+                <array>
+                    <!-- GoogleService-Info.plist의 REVERSED_CLIENT_ID 값 -->
+                    <string>189389362900-h7kc6oappha6u9p8aovarfkh5j6c8m3l.apps.googleusercontent.com</string>
+                </array>
+            </dict>
+        </array>
 	</dict>
 </plist>
