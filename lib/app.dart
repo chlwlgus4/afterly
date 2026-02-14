@@ -19,20 +19,21 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/splash',
     redirect: (context, state) {
       final isLoggedIn = authState.valueOrNull != null;
-      final isLoginRoute = state.matchedLocation == '/login' ||
-          state.matchedLocation == '/signup';
+      final isAuthRoute = state.matchedLocation == '/login' ||
+          state.matchedLocation == '/signup' ||
+          state.matchedLocation == '/password-reset';
       final isSplashRoute = state.matchedLocation == '/splash';
 
       // Allow splash screen to show first
       if (isSplashRoute) return null;
 
-      // Redirect to login if not logged in and not already on login/signup
-      if (!isLoggedIn && !isLoginRoute) {
+      // Redirect to login if not logged in and not on auth routes
+      if (!isLoggedIn && !isAuthRoute) {
         return '/login';
       }
 
-      // Redirect to home if logged in and on login/signup
-      if (isLoggedIn && isLoginRoute) {
+      // Redirect to home if logged in and on auth routes
+      if (isLoggedIn && isAuthRoute) {
         return '/';
       }
 
