@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const primary = Color(0xFF7B7B8E);
-  static const primaryDark = Color(0xFF5C5C6E);
-  static const accent = Color(0xFFA0A0B2);
+  // 스플래시 화면과 동일한 톤
+  static const primary = Color(0xFF6C63FF);
+  static const primaryDark = Color(0xFF5850E6);
+  static const accent = Color(0xFF9C96FF);
   static const background = Color(0xFFF8F8FA);
   static const surface = Color(0xFFFFFFFF);
   static const surfaceLight = Color(0xFFE5E5EB);
   static const textPrimary = Color(0xFF1A1A2E);
   static const textSecondary = Color(0xFF8E8E9E);
-  static const success = Color(0xFF5BAD6B);
+  static const success = Color(0xFF4CAF50); // 스플래시 그라디언트 색상
   static const warning = Color(0xFFE5A44D);
   static const error = Color(0xFFD95B5B);
-  static const guideOk = Color(0xFF5BAD6B);
+  static const guideOk = Color(0xFF4CAF50);
   static const guideWarning = Color(0xFFE5A44D);
   static const guideBad = Color(0xFFD95B5B);
 }

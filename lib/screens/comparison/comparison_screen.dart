@@ -222,7 +222,13 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
             children: [
               const Icon(Icons.error_outline, size: 48, color: AppColors.error),
               const SizedBox(height: 16),
-              Text(_errorMessage!, style: AppTextStyles.body),
+              Text(
+                _errorMessage!,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: () => context.go('/'),
@@ -763,7 +769,10 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
             const SizedBox(height: 10),
             Text(
               '분석 중... $_analysisSeconds초 경과 (약 5~10초 소요)',
-              style: AppTextStyles.captionDark,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white.withValues(alpha: 0.7),
+              ),
             ),
             const SizedBox(height: 12),
           ],

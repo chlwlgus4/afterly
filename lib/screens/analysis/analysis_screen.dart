@@ -54,7 +54,10 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                 _session == null
                     ? '촬영 기록을 찾을 수 없습니다.\n기록이 삭제되었을 수 있습니다.'
                     : '분석 데이터가 없습니다.\n비교 화면에서 분석을 먼저 진행해주세요.',
-                style: AppTextStyles.body,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
@@ -98,7 +101,14 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
             const SizedBox(height: 20),
 
             // 점수 카드들
-            const Text('상세 분석', style: AppTextStyles.heading3),
+            Text(
+              '상세 분석',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
             const SizedBox(height: 12),
             _buildScoreCard(
               icon: Icons.face,
@@ -188,7 +198,13 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text('BEFORE', style: AppTextStyles.caption),
+                  Text(
+                    'BEFORE',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -218,7 +234,13 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text('AFTER', style: AppTextStyles.caption),
+                  Text(
+                    'AFTER',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -248,17 +270,28 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
-              SizedBox(width: 8),
-              Text('분석 요약', style: AppTextStyles.heading3),
+              const Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                '분석 요약',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             _session!.summary ?? '분석 요약을 생성할 수 없습니다.',
-            style: AppTextStyles.body.copyWith(height: 1.5),
+            style: TextStyle(
+              fontSize: 16,
+              color: Theme.of(context).colorScheme.onSurface,
+              height: 1.5,
+            ),
           ),
         ],
       ),
@@ -316,14 +349,21 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       const SizedBox(width: 6),
                       Text(
                         title,
-                        style: AppTextStyles.heading3.copyWith(fontSize: 16),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
                     description,
-                    style: AppTextStyles.bodySecondary,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
                   ),
                 ],
               ),

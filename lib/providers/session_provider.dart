@@ -1,45 +1,59 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/shooting_session.dart';
 import 'firestore_provider.dart';
-import 'auth_provider.dart';
+import 'auth_provider.dart' show authTokenReadyProvider, currentUserProvider;
 
-final sessionListProvider =
-    AsyncNotifierProvider.family<SessionListNotifier, List<ShootingSession>, String>(
-  SessionListNotifier.new,
-);
+// Stream Provider로 변경하여 실시간 업데이트
+final sessionListProvider = StreamProvider.autoDispose.family<List<ShootingSession>, String>((ref, customerId) {
+  final userAsync = ref.watch(authTokenReadyProvider);
 
-class SessionListNotifier
-    extends FamilyAsyncNotifier<List<ShootingSession>, String> {
-  @override
-  Future<List<ShootingSession>> build(String arg) async {
-    final firestore = ref.read(firestoreServiceProvider);
-    return firestore.getSessionsForCustomer(arg);
-  }
+  return userAsync.when(
+    data: (user) {
+      if (user == null) {
+        return Stream.value([]);
+      }
 
-  Future<String> createSession() async {
+      final firestore = ref.read(firestoreServiceProvider);
+      return firestore.getSessionsStream(user.uid, customerId);
+    },
+    loading: () => Stream.value([]),
+    error: (e, stack) => Stream.value([]),
+  );
+});
+
+// 세션 추가/삭제/수정 작업용 Provider
+final sessionActionsProvider = Provider<SessionActions>((ref) {
+  return SessionActions(ref);
+});
+
+class SessionActions {
+  SessionActions(this.ref);
+  final Ref ref;
+
+  Future<String> createSession(String customerId) async {
     final userId = ref.read(currentUserProvider)?.uid;
     if (userId == null) throw Exception('User not logged in');
 
     final firestore = ref.read(firestoreServiceProvider);
     final session = ShootingSession(
       userId: userId,
-      customerId: arg,
+      customerId: customerId,
     );
     final id = await firestore.addSession(session);
-    ref.invalidateSelf();
+    // debugPrint('✅ 세션 추가 완료 - Firestore 스트림이 자동 업데이트');
     return id;
   }
 
   Future<void> updateSession(ShootingSession session) async {
     final firestore = ref.read(firestoreServiceProvider);
     await firestore.updateSession(session);
-    ref.invalidateSelf();
+    // debugPrint('✅ 세션 업데이트 완료 - Firestore 스트림이 자동 업데이트');
   }
 
   Future<void> deleteSession(String sessionId) async {
     final firestore = ref.read(firestoreServiceProvider);
     await firestore.deleteSession(sessionId);
-    ref.invalidateSelf();
+    // debugPrint('✅ 세션 삭제 완료 - Firestore 스트림이 자동 업데이트');
   }
 }
 

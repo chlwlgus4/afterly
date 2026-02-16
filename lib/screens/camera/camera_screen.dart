@@ -378,7 +378,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
               widget.shootingType == 'before'
                   ? 'Before 촬영 완료!'
                   : 'After 촬영 완료!',
-              style: AppTextStyles.heading3,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
           ],
         ),
@@ -410,46 +414,129 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
             ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(context);
+              final navigator = Navigator.of(context);
+              final router = GoRouter.of(context);
+
+              // 첫 번째 다이얼로그(촬영 결과) 닫기
+              navigator.pop();
 
               if (widget.shootingType == 'before') {
                 // Before → After 촬영: 바로 이동 (백그라운드 업로드)
-                context.go('/camera/${widget.customerId}/${widget.sessionId}/after');
+                router.go('/camera/${widget.customerId}/${widget.sessionId}/after');
               } else {
                 // After → 비교: 업로드 완료 대기
                 if (_uploadFuture != null) {
-                  // 업로드 중 표시
+                  bool cancelled = false;
+
+                  // 업로드 중 다이얼로그 표시
                   if (mounted) {
-                    showDialog(
+                    unawaited(showDialog(
                       context: context,
                       barrierDismissible: false,
-                      builder: (context) => const Center(
-                        child: Card(
-                          child: Padding(
-                            padding: EdgeInsets.all(24.0),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                CircularProgressIndicator(),
-                                SizedBox(height: 16),
-                                Text('이미지 저장 중...'),
-                              ],
-                            ),
+                      builder: (dialogContext) => WillPopScope(
+                        onWillPop: () async => false,
+                        child: AlertDialog(
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              CircularProgressIndicator(),
+                              SizedBox(height: 16),
+                              Text('이미지 저장 중...'),
+                              SizedBox(height: 8),
+                              Text(
+                                '업로드 완료 시 자동으로 이동합니다',
+                                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              ),
+                            ],
                           ),
+                          actions: [
+                            TextButton(
+                              onPressed: () {
+                                cancelled = true;
+                                Navigator.of(dialogContext).pop();
+                                // 즉시 비교 화면으로 이동
+                                router.go('/comparison/${widget.sessionId}');
+                              },
+                              child: const Text('건너뛰고 이동'),
+                            ),
+                          ],
                         ),
                       ),
+                    ));
+                  }
+
+                  try {
+                    // 20초 타임아웃으로 업로드 대기
+                    await _uploadFuture!.timeout(
+                      const Duration(seconds: 20),
+                      onTimeout: () {
+                        throw TimeoutException('업로드 시간 초과 (20초)');
+                      },
                     );
+
+                    // ✅ 업로드 성공!
+                    // debugPrint('✅ 업로드 완료! 비교 화면으로 이동');
+
+                    if (!cancelled && mounted) {
+                      // 로딩 다이얼로그 닫기
+                      navigator.pop();
+
+                      // 다이얼로그가 완전히 닫힌 후 네비게이션
+                      await Future.delayed(const Duration(milliseconds: 200));
+
+                      if (mounted && !cancelled) {
+                        router.go('/comparison/${widget.sessionId}');
+                      }
+                    }
+                  } catch (e) {
+                    // ❌ 업로드 실패
+                    // debugPrint('❌ 업로드 에러: $e');
+
+                    if (!cancelled && mounted) {
+                      // 로딩 다이얼로그 닫기
+                      navigator.pop();
+
+                      // 에러 다이얼로그 표시
+                      final shouldContinue = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          backgroundColor: AppColors.background,
+                          title: const Text('업로드 실패'),
+                          content: SelectableText(
+                            '이미지 업로드에 실패했습니다.\n\n'
+                            '오류: ${e.toString().replaceAll('Exception:', '').trim()}\n\n'
+                            '해결 방법:\n'
+                            '• Storage 보안 규칙 배포 확인\n'
+                            '• 네트워크 연결 확인\n\n'
+                            '비교 화면으로 이동하시겠습니까?'
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(false),
+                              child: const Text('홈으로'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.of(ctx).pop(true),
+                              child: const Text('비교 화면으로'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (mounted) {
+                        if (shouldContinue == true) {
+                          router.go('/comparison/${widget.sessionId}');
+                        } else {
+                          router.go('/');
+                        }
+                      }
+                    }
                   }
-
-                  await _uploadFuture;
-
+                } else {
+                  // uploadFuture가 null이면 바로 이동
                   if (mounted) {
-                    Navigator.pop(context); // 로딩 다이얼로그 닫기
+                    router.go('/comparison/${widget.sessionId}');
                   }
-                }
-
-                if (mounted) {
-                  context.go('/comparison/${widget.sessionId}');
                 }
               }
             },
@@ -471,7 +558,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
 
       if (session == null) {
         // 세션이 삭제되었으면 업로드하지 않고 로컬 파일만 삭제
-        debugPrint('세션이 삭제되어 업로드를 건너뜁니다: ${widget.sessionId}');
+        // debugPrint('세션이 삭제되어 업로드를 건너뜁니다: ${widget.sessionId}');
         await imageFile.delete();
         return;
       }
@@ -490,12 +577,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       // 다시 한 번 세션 확인 (업로드 중에 삭제될 수 있음)
       final sessionCheck = await firestore.getSession(widget.sessionId);
       if (sessionCheck == null) {
-        debugPrint('업로드 중 세션이 삭제됨: ${widget.sessionId}');
+        // debugPrint('업로드 중 세션이 삭제됨: ${widget.sessionId}');
         // 이미 업로드된 이미지 삭제
         try {
           await storage.deleteImageByUrl(imageUrl);
         } catch (e) {
-          debugPrint('이미지 삭제 실패: $e');
+          // debugPrint('이미지 삭제 실패: $e');
         }
         return;
       }
@@ -512,10 +599,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       // Provider 갱신
       if (mounted) {
         ref.invalidate(sessionListProvider(widget.customerId));
-        await ref.read(customerListProvider.notifier).updateLastShooting(widget.customerId);
+        await ref.read(customerActionsProvider).updateLastShooting(widget.customerId);
       }
     } catch (e) {
-      debugPrint('백그라운드 업로드 실패: $e');
+      // debugPrint('백그라운드 업로드 실패: $e');
       // 임시 파일 정리 시도
       try {
         await imageFile.delete();

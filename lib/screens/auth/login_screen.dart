@@ -74,18 +74,72 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // Navigation is handled by authStateProvider in app.dart
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: Colors.red,
-          ),
-        );
+        final errorMessage = e.toString();
+
+        // 사용자를 찾을 수 없거나 인증 실패한 경우 회원가입 유도
+        if (errorMessage.contains('사용자를 찾을 수 없습니다') ||
+            errorMessage.contains('계정을 찾을 수 없습니다') ||
+            errorMessage.contains('이메일 또는 비밀번호가 올바르지 않습니다')) {
+          _showSignUpSuggestionDialog();
+        } else {
+          // 일반 에러 메시지 표시
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _showSignUpSuggestionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.info_outline, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('로그인 실패'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${_emailController.text.trim()} 으로\n가입된 계정이 없거나\n비밀번호가 올바르지 않습니다.'),
+            const SizedBox(height: 12),
+            const Text(
+              '회원가입을 진행하시겠습니까?',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.push('/signup');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('회원가입'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _signInWithGoogle() async {

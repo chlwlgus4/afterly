@@ -59,6 +59,9 @@ dependencies:
   # Local Storage for Remember Me
   shared_preferences: ^2.3.5
 
+  # App Info
+  package_info_plus: ^8.1.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -69,9 +72,12 @@ flutter:
   uses-material-design: true
   assets:
     - assets/splash/
+    - assets/icon/
 
-flutter_icons:
+flutter_launcher_icons:
   android: true
-  ios: false   # iOS는 이미 Xcode에서 처리했으니 false
+  ios: true
   image_path: "assets/icon/app_icon.png"
-
+  remove_alpha_ios: true
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
