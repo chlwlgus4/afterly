@@ -46,3 +46,10 @@ app.*.map.json
 
 # Claude Code settings
 .claude.json
+
+# Firebase configuration files (contain API keys)
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+.env
+.env.*
+firebase_options.dart
