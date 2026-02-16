@@ -33,6 +33,9 @@ dependencies:
   # Image processing
   image: ^4.5.3
 
+  # Image picker for gallery
+  image_picker: ^1.1.2
+
   # HTTP client for downloading images
   http: ^1.2.2
 

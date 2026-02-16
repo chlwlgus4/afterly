@@ -45,6 +45,8 @@
 		<string>얼굴 촬영을 위해 카메라 접근이 필요합니다</string>
 		<key>NSMotionUsageDescription</key>
 		<string>촬영 시 흔들림 감지를 위해 모션 센서 접근이 필요합니다</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>갤러리에서 이미지를 선택하기 위해 사진 앨범 접근이 필요합니다</string>
 		<key>NSPhotoLibraryAddUsageDescription</key>
 		<string>비교 이미지를 사진 앨범에 저장하기 위해 접근이 필요합니다</string>
 		<key>NSLocalNetworkUsageDescription</key>

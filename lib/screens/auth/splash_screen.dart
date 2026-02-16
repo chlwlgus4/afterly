@@ -67,10 +67,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                     ),
                   ],
                 ),
-                child: const Icon(
-                  Icons.face_retouching_natural,
-                  size: 60,
-                  color: Color(0xFF6C63FF),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Image.asset(
+                      'assets/icon/app_icon.png',
+                      fit: BoxFit.contain,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 24),

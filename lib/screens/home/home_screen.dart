@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../../models/customer.dart';
 import '../../models/shooting_session.dart';
 import '../../providers/customer_provider.dart';
@@ -565,69 +567,110 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         : (groupId == null ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6) : Theme.of(context).colorScheme.primary);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      elevation: 2,
+      shadowColor: color.withValues(alpha: 0.15),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Column(
         children: [
           // 그룹 헤더 (클릭 가능)
           InkWell(
             onTap: onToggle,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
                   // 그룹 아이콘/색상
-                  if (groupId != null)
-                    Container(
-                      width: 16,
-                      height: 16,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                      ),
-                    )
-                  else
-                    Icon(
-                      Icons.person_outline,
-                      size: 16,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      gradient: groupId != null
+                          ? LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                color,
+                                color.withValues(alpha: 0.7),
+                              ],
+                            )
+                          : LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                                Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                              ],
+                            ),
+                      shape: BoxShape.circle,
+                      boxShadow: groupId != null
+                          ? [
+                              BoxShadow(
+                                color: color.withValues(alpha: 0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
                     ),
-                  const SizedBox(width: 12),
+                    child: Icon(
+                      groupId != null ? Icons.folder : Icons.people_outline,
+                      color: groupId != null ? Colors.white : color,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
 
                   // 그룹 이름
                   Expanded(
-                    child: Text(
-                      groupName,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          groupName,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.people_outline,
+                              size: 14,
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${customers.length}명의 고객',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-
-                  // 고객 수
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${customers.length}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: color,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
 
                   // 펼침/접힘 아이콘
-                  Icon(
-                    isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                      color: color,
+                      size: 24,
+                    ),
                   ),
                 ],
               ),
@@ -636,8 +679,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
           // 고객 리스트 (펼쳐졌을 때만 표시)
           if (isExpanded) ...[
-            const Divider(height: 1),
-            ...customers.map((customer) => _CustomerCard(customer: customer)),
+            Divider(
+              height: 1,
+              thickness: 1,
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Column(
+                children: customers.map((customer) => _CustomerCard(customer: customer)).toList(),
+              ),
+            ),
           ],
         ],
       ),
@@ -716,103 +768,198 @@ class _CustomerCard extends ConsumerWidget {
         .toList();
     final hasPendingAfter = pendingAfter != null && pendingAfter.isNotEmpty;
 
-    return InkWell(
-      onTap: () => _showCustomerOptions(context, ref),
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(color: Theme.of(context).dividerColor, width: 0.5),
-          ),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            sessionsAsync.when(
-              data: (sessions) {
-                // 마지막 세션 가져오기
-                final lastSession = sessions.isNotEmpty ? sessions.first : null;
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      elevation: 2,
+      shadowColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: InkWell(
+        onTap: () => _showCustomerOptions(context, ref),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              sessionsAsync.when(
+                data: (sessions) {
+                  // 마지막 세션 가져오기
+                  final lastSession = sessions.isNotEmpty ? sessions.first : null;
 
-                return Row(
-                  children: [
-                    // 프로필 이미지 (마지막 촬영 이미지 또는 이니셜)
-                    lastSession?.beforeImageUrl != null
-                        ? CircleAvatar(
-                            radius: 24,
-                            backgroundImage: NetworkImage(lastSession!.beforeImageUrl!),
-                            backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-                          )
-                        : CircleAvatar(
-                            radius: 24,
-                            backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-                            child: Text(
-                              customer.name.isNotEmpty ? customer.name[0] : '?',
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.primary,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  return Row(
+                    children: [
+                      // 프로필 이미지 (마지막 촬영 이미지 또는 이니셜)
+                      Stack(
                         children: [
-                          Text(
-                            customer.name,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            customer.lastShootingAt != null
-                                ? '최근 촬영: ${DateFormat('yyyy.MM.dd').format(customer.lastShootingAt!)}'
-                                : '촬영 기록 없음',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                            ),
-                          ),
-                          if (lastSession != null) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              _getSessionStatus(lastSession),
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: _getSessionStatusColor(context, lastSession),
-                                fontWeight: FontWeight.w500,
+                          lastSession?.beforeImageUrl != null
+                              ? Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: CircleAvatar(
+                                    radius: 30,
+                                    backgroundImage: NetworkImage(lastSession!.beforeImageUrl!),
+                                    backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                  ),
+                                )
+                              : Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                                        Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                      ],
+                                    ),
+                                  ),
+                                  child: CircleAvatar(
+                                    radius: 30,
+                                    backgroundColor: Colors.transparent,
+                                    child: Text(
+                                      customer.name.isNotEmpty ? customer.name[0] : '?',
+                                      style: TextStyle(
+                                        color: Theme.of(context).colorScheme.primary,
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                          // 촬영 횟수 뱃지
+                          if (sessions.isNotEmpty)
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Theme.of(context).colorScheme.surface,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Text(
+                                  '${sessions.length}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
                             ),
+                        ],
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              customer.name,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.calendar_today,
+                                  size: 14,
+                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  customer.lastShootingAt != null
+                                      ? DateFormat('yyyy.MM.dd').format(customer.lastShootingAt!)
+                                      : '촬영 기록 없음',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (lastSession != null) ...[
+                              const SizedBox(height: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: _getSessionStatusColor(context, lastSession).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: _getSessionStatusColor(context, lastSession).withValues(alpha: 0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      _getSessionStatusIcon(lastSession),
+                                      size: 12,
+                                      color: _getSessionStatusColor(context, lastSession),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _getSessionStatus(lastSession),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: _getSessionStatusColor(context, lastSession),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                        size: 28,
+                      ),
+                    ],
+                  );
+                },
+              loading: () => Row(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                          Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                         ],
                       ),
                     ),
-                    Text(
-                      '${sessions.length}회',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
-                  ],
-                );
-              },
-              loading: () => Row(
-                children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-                    child: Text(
-                      customer.name.isNotEmpty ? customer.name[0] : '?',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                    child: CircleAvatar(
+                      radius: 30,
+                      backgroundColor: Colors.transparent,
+                      child: Text(
+                        customer.name.isNotEmpty ? customer.name[0] : '?',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -829,37 +976,60 @@ class _CustomerCard extends ConsumerWidget {
                             color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          customer.lastShootingAt != null
-                              ? '최근 촬영: ${DateFormat('yyyy.MM.dd').format(customer.lastShootingAt!)}'
-                              : '촬영 기록 없음',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                          ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today,
+                              size: 14,
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              customer.lastShootingAt != null
+                                  ? DateFormat('yyyy.MM.dd').format(customer.lastShootingAt!)
+                                  : '촬영 기록 없음',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(
-                    width: 12,
-                    height: 12,
+                    width: 16,
+                    height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 ],
               ),
               error: (e, stack) => Row(
                 children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-                    child: Text(
-                      customer.name.isNotEmpty ? customer.name[0] : '?',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                          Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                        ],
+                      ),
+                    ),
+                    child: CircleAvatar(
+                      radius: 30,
+                      backgroundColor: Colors.transparent,
+                      child: Text(
+                        customer.name.isNotEmpty ? customer.name[0] : '?',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -876,15 +1046,25 @@ class _CustomerCard extends ConsumerWidget {
                             color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          customer.lastShootingAt != null
-                              ? '최근 촬영: ${DateFormat('yyyy.MM.dd').format(customer.lastShootingAt!)}'
-                              : '촬영 기록 없음',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                          ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today,
+                              size: 14,
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              customer.lastShootingAt != null
+                                  ? DateFormat('yyyy.MM.dd').format(customer.lastShootingAt!)
+                                  : '촬영 기록 없음',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -939,7 +1119,7 @@ class _CustomerCard extends ConsumerWidget {
                   const SizedBox(width: 8),
                   Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
                 ],
-              ),
+              )
             ),
             // After 미촬영 세션 알림
             if (hasPendingAfter) ...[
@@ -995,6 +1175,7 @@ class _CustomerCard extends ConsumerWidget {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -1037,6 +1218,14 @@ class _CustomerCard extends ConsumerWidget {
               onTap: () {
                 Navigator.pop(context);
                 _startNewSession(context, ref);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.upload_file, color: Theme.of(context).colorScheme.primary),
+              title: const Text('이미지 업로드'),
+              onTap: () {
+                Navigator.pop(context);
+                _showUploadDialog(context, ref);
               },
             ),
             ListTile(
@@ -1113,33 +1302,124 @@ class _CustomerCard extends ConsumerWidget {
     final newName = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('고객 이름 수정'),
-        content: TextField(
-          controller: nameController,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: '고객 이름',
-            hintText: '새 이름을 입력하세요',
-            border: OutlineInputBorder(),
-          ),
-          onSubmitted: (value) {
-            if (value.trim().isNotEmpty) {
-              Navigator.pop(context, value.trim());
-            }
-          },
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
         ),
+        title: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Theme.of(context).colorScheme.primary,
+                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.edit, color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              '고객 이름 수정',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '새 이름',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: nameController,
+              autofocus: true,
+              style: const TextStyle(fontSize: 15),
+              decoration: InputDecoration(
+                hintText: '이름을 입력하세요',
+                hintStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                ),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 2,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              ),
+              onSubmitted: (value) {
+                if (value.trim().isNotEmpty) {
+                  Navigator.pop(context, value.trim());
+                }
+              },
+            ),
+          ],
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              '취소',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
           ),
+          const SizedBox(width: 8),
           ElevatedButton(
             onPressed: () {
               if (nameController.text.trim().isNotEmpty) {
                 Navigator.pop(context, nameController.text.trim());
               }
             },
-            child: const Text('저장'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text(
+              '저장',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -1217,6 +1497,441 @@ class _CustomerCard extends ConsumerWidget {
     }
   }
 
+  Future<void> _showUploadDialog(BuildContext context, WidgetRef ref) async {
+    DateTime selectedDate = DateTime.now();
+    File? beforeImage;
+    File? afterImage;
+    final imagePicker = ImagePicker();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Theme.of(context).colorScheme.primary,
+                      Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.upload_file, color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                '이미지 업로드',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 날짜 선택
+                Text(
+                  '촬영 날짜',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) {
+                      setState(() => selectedDate = picked);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                        width: 1.5,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.calendar_today,
+                            size: 18,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          DateFormat('yyyy년 MM월 dd일').format(selectedDate),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Before 이미지 선택
+                Text(
+                  'Before 이미지',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () async {
+                    final picked = await imagePicker.pickImage(
+                      source: ImageSource.gallery,
+                      imageQuality: 85,
+                    );
+                    if (picked != null) {
+                      setState(() => beforeImage = File(picked.path));
+                    }
+                  },
+                  child: Container(
+                    height: 140,
+                    decoration: BoxDecoration(
+                      color: beforeImage != null
+                          ? Colors.transparent
+                          : Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: beforeImage != null
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                        width: 2,
+                      ),
+                    ),
+                    child: beforeImage != null
+                        ? Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.file(
+                                  beforeImage!,
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                ),
+                              ),
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.black54,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: IconButton(
+                                    icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                                    onPressed: () => setState(() => beforeImage = null),
+                                    padding: const EdgeInsets.all(4),
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.add_photo_alternate_outlined,
+                                  size: 48,
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  '갤러리에서 선택',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // After 이미지 선택
+                Text(
+                  'After 이미지',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () async {
+                    final picked = await imagePicker.pickImage(
+                      source: ImageSource.gallery,
+                      imageQuality: 85,
+                    );
+                    if (picked != null) {
+                      setState(() => afterImage = File(picked.path));
+                    }
+                  },
+                  child: Container(
+                    height: 140,
+                    decoration: BoxDecoration(
+                      color: afterImage != null
+                          ? Colors.transparent
+                          : Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: afterImage != null
+                            ? AppColors.success
+                            : Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                        width: 2,
+                      ),
+                    ),
+                    child: afterImage != null
+                        ? Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.file(
+                                  afterImage!,
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                ),
+                              ),
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.black54,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: IconButton(
+                                    icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                                    onPressed: () => setState(() => afterImage = null),
+                                    padding: const EdgeInsets.all(4),
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.add_photo_alternate_outlined,
+                                  size: 48,
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  '갤러리에서 선택',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: Text(
+                '취소',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: beforeImage == null && afterImage == null
+                  ? null
+                  : () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                '업로드',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == true && (beforeImage != null || afterImage != null)) {
+      if (context.mounted) {
+        _uploadImages(context, ref, selectedDate, beforeImage, afterImage);
+      }
+    }
+  }
+
+  Future<void> _uploadImages(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime shootingDate,
+    File? beforeImage,
+    File? afterImage,
+  ) async {
+    // 로딩 표시
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('이미지 업로드 중...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final userId = ref.read(currentUserProvider)?.uid;
+      if (userId == null) {
+        throw Exception('로그인 정보를 찾을 수 없습니다');
+      }
+
+      final firestore = ref.read(firestoreServiceProvider);
+      final storage = ref.read(storageServiceProvider);
+
+      // 세션 생성 (날짜 지정)
+      final session = ShootingSession(
+        userId: userId,
+        customerId: customer.id!,
+        createdAt: shootingDate,
+      );
+
+      final sessionId = await firestore.addSession(session);
+
+      // Before 이미지 업로드
+      String? beforeUrl;
+      if (beforeImage != null) {
+        beforeUrl = await storage.uploadImage(
+          imageFile: beforeImage,
+          userId: userId,
+          folder: 'before',
+          customFileName: '${customer.id}_${sessionId}_before.jpg',
+        );
+      }
+
+      // After 이미지 업로드
+      String? afterUrl;
+      if (afterImage != null) {
+        afterUrl = await storage.uploadImage(
+          imageFile: afterImage,
+          userId: userId,
+          folder: 'after',
+          customFileName: '${customer.id}_${sessionId}_after.jpg',
+        );
+      }
+
+      // 세션 업데이트
+      if (beforeUrl != null || afterUrl != null) {
+        await firestore.updateSession(
+          session.copyWith(
+            beforeImageUrl: beforeUrl,
+            afterImageUrl: afterUrl,
+          ),
+        );
+      }
+
+      // 마지막 촬영 시간 업데이트
+      await ref.read(customerActionsProvider).updateLastShooting(customer.id!);
+
+      if (context.mounted) {
+        Navigator.pop(context); // 로딩 닫기
+        _showToast(context, '이미지가 업로드되었습니다');
+
+        // 비교 화면으로 이동 (둘 다 있으면) 또는 카메라로 이동
+        if (beforeUrl != null && afterUrl != null) {
+          context.go('/comparison/$sessionId');
+        } else if (beforeUrl != null) {
+          context.go('/camera/${customer.id}/$sessionId/after');
+        } else if (afterUrl != null) {
+          context.go('/camera/${customer.id}/$sessionId/before');
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // 로딩 닫기
+        _showToast(context, '업로드 실패: $e', isError: true);
+      }
+    }
+  }
+
   Future<void> _confirmDeleteCustomer(BuildContext context, WidgetRef ref) async {
     final sessionsAsync = ref.read(sessionListProvider(customer.id!));
     final sessions = sessionsAsync.valueOrNull ?? [];
@@ -1224,20 +1939,75 @@ class _CustomerCard extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('고객 삭제'),
-        content: Text(
-          '${customer.name} 고객을 삭제하시겠습니까?\n'
-          '${sessions.length}건의 촬영 기록과 이미지도 모두 삭제됩니다.',
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
         ),
+        title: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.error.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.delete_outline,
+                color: Theme.of(context).colorScheme.error,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              '고객 삭제',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        content: Text(
+          '${customer.name} 고객을 삭제하시겠습니까?\n\n'
+          '${sessions.length}건의 촬영 기록과 이미지도 모두 삭제됩니다.',
+          style: TextStyle(
+            fontSize: 15,
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+            height: 1.5,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소'),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              '취소',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
           ),
-          TextButton(
+          const SizedBox(width: 8),
+          ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-            child: const Text('삭제'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text(
+              '삭제',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -1277,19 +2047,74 @@ class _CustomerCard extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('촬영 기록 삭제'),
-        content: Text(
-          '${DateFormat('yyyy.MM.dd HH:mm').format(session.createdAt)} 기록을 삭제하시겠습니까?\n이미지 파일도 함께 삭제됩니다.',
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
         ),
+        title: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.error.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.delete_outline,
+                color: Theme.of(context).colorScheme.error,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              '촬영 기록 삭제',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        content: Text(
+          '${DateFormat('yyyy.MM.dd HH:mm').format(session.createdAt)} 기록을 삭제하시겠습니까?\n\n이미지 파일도 함께 삭제됩니다.',
+          style: TextStyle(
+            fontSize: 15,
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+            height: 1.5,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소'),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              '취소',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
           ),
-          TextButton(
+          const SizedBox(width: 8),
+          ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-            child: const Text('삭제'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text(
+              '삭제',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -1352,6 +2177,18 @@ class _CustomerCard extends ConsumerWidget {
       return Theme.of(context).colorScheme.primary;
     }
   }
+
+  IconData _getSessionStatusIcon(ShootingSession session) {
+    if (!session.hasBeforeImage) {
+      return Icons.hourglass_empty;
+    } else if (!session.hasAfterImage) {
+      return Icons.camera_alt;
+    } else if (session.hasAnalysis) {
+      return Icons.analytics;
+    } else {
+      return Icons.check_circle;
+    }
+  }
 }
 
 class _AddCustomerDialog extends ConsumerStatefulWidget {
@@ -1378,55 +2215,160 @@ class _AddCustomerDialogState extends ConsumerState<_AddCustomerDialog> {
     final groupsAsync = ref.watch(groupListProvider);
 
     return AlertDialog(
-      title: const Text('새 고객 추가'),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      title: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.person_add, color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: 12),
+          const Text(
+            '새 고객 추가',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 이름 입력
+            Text(
+              '고객 이름',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: _nameController,
               autofocus: true,
-              decoration: const InputDecoration(
-                labelText: '고객 이름 *',
+              style: TextStyle(fontSize: 15),
+              decoration: InputDecoration(
                 hintText: '이름을 입력하세요',
-                border: OutlineInputBorder(),
+                hintStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                ),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 2,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
             ),
             const SizedBox(height: 16),
 
             // 그룹 선택
+            Text(
+              '그룹 (선택사항)',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
             groupsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, s) => const SizedBox.shrink(),
               data: (groups) {
                 if (groups.isEmpty) {
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '아직 그룹이 없습니다',
-                          style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
+                  return Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '아직 그룹이 없습니다',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                              fontSize: 14,
+                            ),
+                          ),
                         ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          context.push('/groups');
-                        },
-                        child: const Text('그룹 추가'),
-                      ),
-                    ],
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            context.push('/groups');
+                          },
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          ),
+                          child: const Text('그룹 추가'),
+                        ),
+                      ],
+                    ),
                   );
                 }
 
                 return DropdownButtonFormField<String>(
                   value: _selectedGroupId,
-                  decoration: const InputDecoration(
-                    labelText: '그룹',
-                    hintText: '그룹 선택 (선택사항)',
-                    border: OutlineInputBorder(),
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: '그룹 선택',
+                    filled: true,
+                    fillColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: Theme.of(context).colorScheme.primary,
+                        width: 2,
+                      ),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
                   items: [
                     const DropdownMenuItem<String>(
@@ -1463,31 +2405,83 @@ class _AddCustomerDialogState extends ConsumerState<_AddCustomerDialog> {
                 );
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // 메모 입력
+            Text(
+              '메모 (선택사항)',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: _memoController,
               maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: '메모',
-                hintText: '메모 입력 (선택사항)',
-                border: OutlineInputBorder(),
+              style: TextStyle(fontSize: 15),
+              decoration: InputDecoration(
+                hintText: '메모를 입력하세요',
+                hintStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                ),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 2,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.all(14),
               ),
             ),
           ],
         ),
       ),
+      actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('취소'),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          child: Text(
+            '취소',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
         ),
+        const SizedBox(width: 8),
         ElevatedButton(
           onPressed: () {
             if (_nameController.text.trim().isEmpty) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('고객 이름을 입력해주세요')),
+                SnackBar(
+                  content: const Text('고객 이름을 입력해주세요'),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
               );
               return;
             }
@@ -1500,7 +2494,19 @@ class _AddCustomerDialogState extends ConsumerState<_AddCustomerDialog> {
                   : _memoController.text.trim(),
             });
           },
-          child: const Text('추가'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          child: const Text(
+            '추가',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
         ),
       ],
     );
