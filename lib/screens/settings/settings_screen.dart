@@ -29,6 +29,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
   }
 
+  bool _hasPasswordProvider() {
+    final user = ref.watch(authStateProvider).valueOrNull;
+    if (user == null) return false;
+    return user.providerData.any((info) => info.providerId == 'password');
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
@@ -178,6 +184,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _buildSectionHeader('계정'),
           const SizedBox(height: 8),
           _buildSettingsCard([
+            // 비밀번호 제공자가 있는 경우만 표시
+            if (_hasPasswordProvider()) ...[
+              _SettingsItem(
+                icon: Icons.key,
+                iconColor: Theme.of(context).colorScheme.primary,
+                title: '비밀번호 변경',
+                subtitle: '계정 비밀번호 업데이트',
+                onTap: () => context.push('/settings/change-password'),
+              ),
+            ],
             _SettingsItem(
               icon: Icons.logout,
               iconColor: Colors.orange,

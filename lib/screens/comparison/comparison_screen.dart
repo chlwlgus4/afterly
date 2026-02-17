@@ -7,7 +7,7 @@ import '../../providers/firestore_provider.dart';
 import '../../services/image_analysis_service.dart';
 import '../../services/image_export_service.dart';
 import '../../utils/constants.dart';
-import '../../utils/face_guide_painter.dart';
+import '../camera/widgets/face_guide_overlay.dart';
 
 class ComparisonScreen extends ConsumerStatefulWidget {
   final String sessionId;
@@ -314,23 +314,6 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
     );
   }
 
-  /// 카메라와 동일한 가이드라인 오버레이 (Positioned.fill)
-  Widget _buildGuideOverlay() {
-    if (!_showGuide) return const SizedBox.shrink();
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: CustomPaint(
-          painter: FaceGuidePainter(
-            color: AppColors.guideOk,
-            opacity: 0.6,          // 0.8 → 0.6 (카메라와 동일)
-            strokeWidth: 3.5,      // 3.0 → 3.5 (카메라와 동일)
-            showGlow: true,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildSliderView() {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -373,7 +356,11 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                 ),
               ),
               // 가이드라인
-              _buildGuideOverlay(),
+              if (_showGuide)
+                const FaceGuideOverlay(
+                  canShoot: true,
+                  showMessage: false,  // 비교 화면에서는 메시지 숨김
+                ),
               // 슬라이더 라인
               Positioned(
                 left: width * _sliderPosition - 1,
@@ -479,7 +466,11 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
             ),
           ),
           // 가이드라인
-          _buildGuideOverlay(),
+          if (_showGuide)
+            const FaceGuideOverlay(
+              canShoot: true,
+              showMessage: false,  // 비교 화면에서는 메시지 숨김
+            ),
           // 상단 레이블
           Positioned(
             top: 16,
@@ -568,7 +559,11 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                 ),
         ),
         // 가이드라인
-        _buildGuideOverlay(),
+        if (_showGuide)
+          const FaceGuideOverlay(
+            canShoot: true,
+            showMessage: false,  // 비교 화면에서는 메시지 숨김
+          ),
         // 레이블
         Positioned(
           top: 16,

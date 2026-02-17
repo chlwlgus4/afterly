@@ -14,6 +14,7 @@ import 'screens/settings/about_screen.dart';
 import 'screens/settings/faq_screen.dart';
 import 'screens/settings/privacy_screen.dart';
 import 'screens/settings/terms_screen.dart';
+import 'screens/settings/change_password_screen.dart';
 import 'screens/groups/group_management_screen.dart';
 import 'providers/auth_provider.dart';
 import 'providers/settings_provider.dart';
@@ -121,6 +122,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/terms',
         builder: (context, state) => const TermsOfServiceScreen(),
+      ),
+      GoRoute(
+        path: '/settings/change-password',
+        builder: (context, state) => const ChangePasswordScreen(),
       ),
     ],
   );
