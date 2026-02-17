@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import '../../models/shooting_session.dart';
 import '../../providers/customer_provider.dart';
@@ -13,6 +14,7 @@ import '../../providers/firestore_provider.dart';
 import '../../providers/storage_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/session_provider.dart';
+import '../../services/face_alignment_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/face_guide_filter.dart';
 import 'widgets/face_guide_overlay.dart';
@@ -123,9 +125,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
 
   Future<void> _initCamera() async {
     final cameras = await availableCameras();
-    final direction = _isFrontCamera
-        ? CameraLensDirection.front
-        : CameraLensDirection.back;
+    final direction =
+        _isFrontCamera ? CameraLensDirection.front : CameraLensDirection.back;
     final camera = cameras.firstWhere(
       (c) => c.lensDirection == direction,
       orElse: () => cameras.first,
@@ -135,9 +136,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       camera,
       ResolutionPreset.high,
       enableAudio: false,
-      imageFormatGroup: Platform.isAndroid
-          ? ImageFormatGroup.nv21
-          : ImageFormatGroup.bgra8888,
+      imageFormatGroup:
+          Platform.isAndroid
+              ? ImageFormatGroup.nv21
+              : ImageFormatGroup.bgra8888,
     );
 
     await _cameraController!.initialize();
@@ -315,7 +317,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     try {
       // 이미지 스트림 정지 후 카메라 안정화 대기
       await _cameraController!.stopImageStream();
-      await Future.delayed(const Duration(milliseconds: 200)); // 500ms → 200ms 단축
+      await Future.delayed(
+        const Duration(milliseconds: 200),
+      ); // 500ms → 200ms 단축
 
       if (!mounted || _cameraController == null) return;
 
@@ -360,192 +364,208 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.file(
-                File(localPath),
-                height: 300,
-                fit: BoxFit.cover,
-              ),
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(
+                    File(localPath),
+                    height: 300,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  widget.shootingType == 'before'
+                      ? 'Before 촬영 완료!'
+                      : 'After 촬영 완료!',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            Text(
-              widget.shootingType == 'before'
-                  ? 'Before 촬영 완료!'
-                  : 'After 촬영 완료!',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              // 재촬영 - 로컬 파일 삭제
-              try {
-                await File(localPath).delete();
-              } catch (e) {
-                // 삭제 실패해도 계속 진행
-              }
-              await _cameraController!.startImageStream(_processFrame);
-              setState(() {
-                _isTakingPicture = false;
-                _guideFilter.reset();
-              });
-            },
-            child: const Text('재촬영'),
-          ),
-          if (widget.shootingType == 'before')
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                context.go('/');
-              },
-              child: const Text('나중에 After 촬영'),
-            ),
-          ElevatedButton(
-            onPressed: () async {
-              final navigator = Navigator.of(context);
-              final router = GoRouter.of(context);
-
-              // 첫 번째 다이얼로그(촬영 결과) 닫기
-              navigator.pop();
-
-              if (widget.shootingType == 'before') {
-                // Before → After 촬영: 바로 이동 (백그라운드 업로드)
-                router.go('/camera/${widget.customerId}/${widget.sessionId}/after');
-              } else {
-                // After → 비교: 업로드 완료 대기
-                if (_uploadFuture != null) {
-                  bool cancelled = false;
-
-                  // 업로드 중 다이얼로그 표시
-                  if (mounted) {
-                    unawaited(showDialog(
-                      context: context,
-                      barrierDismissible: false,
-                      builder: (dialogContext) => WillPopScope(
-                        onWillPop: () async => false,
-                        child: AlertDialog(
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              CircularProgressIndicator(),
-                              SizedBox(height: 16),
-                              Text('이미지 저장 중...'),
-                              SizedBox(height: 8),
-                              Text(
-                                '업로드 완료 시 자동으로 이동합니다',
-                                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                              ),
-                            ],
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () {
-                                cancelled = true;
-                                Navigator.of(dialogContext).pop();
-                                // 즉시 비교 화면으로 이동
-                                router.go('/comparison/${widget.sessionId}');
-                              },
-                              child: const Text('건너뛰고 이동'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ));
-                  }
-
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  // 재촬영 - 로컬 파일 삭제
                   try {
-                    // 20초 타임아웃으로 업로드 대기
-                    await _uploadFuture!.timeout(
-                      const Duration(seconds: 20),
-                      onTimeout: () {
-                        throw TimeoutException('업로드 시간 초과 (20초)');
-                      },
+                    await File(localPath).delete();
+                  } catch (e) {
+                    // 삭제 실패해도 계속 진행
+                  }
+                  await _cameraController!.startImageStream(_processFrame);
+                  setState(() {
+                    _isTakingPicture = false;
+                    _guideFilter.reset();
+                  });
+                },
+                child: const Text('재촬영'),
+              ),
+              if (widget.shootingType == 'before')
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    context.go('/');
+                  },
+                  child: const Text('나중에 After 촬영'),
+                ),
+              ElevatedButton(
+                onPressed: () async {
+                  final navigator = Navigator.of(context);
+                  final router = GoRouter.of(context);
+
+                  // 첫 번째 다이얼로그(촬영 결과) 닫기
+                  navigator.pop();
+
+                  if (widget.shootingType == 'before') {
+                    // Before → After 촬영: 바로 이동 (백그라운드 업로드)
+                    router.go(
+                      '/camera/${widget.customerId}/${widget.sessionId}/after',
                     );
+                  } else {
+                    // After → 비교: 업로드 완료 대기
+                    if (_uploadFuture != null) {
+                      bool cancelled = false;
 
-                    // ✅ 업로드 성공!
-                    // debugPrint('✅ 업로드 완료! 비교 화면으로 이동');
+                      // 업로드 중 다이얼로그 표시
+                      if (mounted) {
+                        unawaited(
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder:
+                                (dialogContext) => WillPopScope(
+                                  onWillPop: () async => false,
+                                  child: AlertDialog(
+                                    content: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: const [
+                                        CircularProgressIndicator(),
+                                        SizedBox(height: 16),
+                                        Text('이미지 저장 중...'),
+                                        SizedBox(height: 8),
+                                        Text(
+                                          '업로드 완료 시 자동으로 이동합니다',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () {
+                                          cancelled = true;
+                                          Navigator.of(dialogContext).pop();
+                                          // 즉시 비교 화면으로 이동
+                                          router.go(
+                                            '/comparison/${widget.sessionId}',
+                                          );
+                                        },
+                                        child: const Text('건너뛰고 이동'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                          ),
+                        );
+                      }
 
-                    if (!cancelled && mounted) {
-                      // 로딩 다이얼로그 닫기
-                      navigator.pop();
+                      try {
+                        // 20초 타임아웃으로 업로드 대기
+                        await _uploadFuture!.timeout(
+                          const Duration(seconds: 20),
+                          onTimeout: () {
+                            throw TimeoutException('업로드 시간 초과 (20초)');
+                          },
+                        );
 
-                      // 다이얼로그가 완전히 닫힌 후 네비게이션
-                      await Future.delayed(const Duration(milliseconds: 200));
+                        // ✅ 업로드 성공!
+                        // debugPrint('✅ 업로드 완료! 비교 화면으로 이동');
 
-                      if (mounted && !cancelled) {
+                        if (!cancelled && mounted) {
+                          // 로딩 다이얼로그 닫기
+                          navigator.pop();
+
+                          // 다이얼로그가 완전히 닫힌 후 네비게이션
+                          await Future.delayed(
+                            const Duration(milliseconds: 200),
+                          );
+
+                          if (mounted && !cancelled) {
+                            router.go('/comparison/${widget.sessionId}');
+                          }
+                        }
+                      } catch (e) {
+                        // ❌ 업로드 실패
+                        // debugPrint('❌ 업로드 에러: $e');
+
+                        if (!cancelled && mounted) {
+                          // 로딩 다이얼로그 닫기
+                          navigator.pop();
+
+                          // 에러 다이얼로그 표시
+                          final shouldContinue = await showDialog<bool>(
+                            context: context,
+                            builder:
+                                (ctx) => AlertDialog(
+                                  backgroundColor: AppColors.background,
+                                  title: const Text('업로드 실패'),
+                                  content: SelectableText(
+                                    '이미지 업로드에 실패했습니다.\n\n'
+                                    '오류: ${e.toString().replaceAll('Exception:', '').trim()}\n\n'
+                                    '해결 방법:\n'
+                                    '• Storage 보안 규칙 배포 확인\n'
+                                    '• 네트워크 연결 확인\n\n'
+                                    '비교 화면으로 이동하시겠습니까?',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed:
+                                          () => Navigator.of(ctx).pop(false),
+                                      child: const Text('홈으로'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed:
+                                          () => Navigator.of(ctx).pop(true),
+                                      child: const Text('비교 화면으로'),
+                                    ),
+                                  ],
+                                ),
+                          );
+
+                          if (mounted) {
+                            if (shouldContinue == true) {
+                              router.go('/comparison/${widget.sessionId}');
+                            } else {
+                              router.go('/');
+                            }
+                          }
+                        }
+                      }
+                    } else {
+                      // uploadFuture가 null이면 바로 이동
+                      if (mounted) {
                         router.go('/comparison/${widget.sessionId}');
                       }
                     }
-                  } catch (e) {
-                    // ❌ 업로드 실패
-                    // debugPrint('❌ 업로드 에러: $e');
-
-                    if (!cancelled && mounted) {
-                      // 로딩 다이얼로그 닫기
-                      navigator.pop();
-
-                      // 에러 다이얼로그 표시
-                      final shouldContinue = await showDialog<bool>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          backgroundColor: AppColors.background,
-                          title: const Text('업로드 실패'),
-                          content: SelectableText(
-                            '이미지 업로드에 실패했습니다.\n\n'
-                            '오류: ${e.toString().replaceAll('Exception:', '').trim()}\n\n'
-                            '해결 방법:\n'
-                            '• Storage 보안 규칙 배포 확인\n'
-                            '• 네트워크 연결 확인\n\n'
-                            '비교 화면으로 이동하시겠습니까?'
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(ctx).pop(false),
-                              child: const Text('홈으로'),
-                            ),
-                            ElevatedButton(
-                              onPressed: () => Navigator.of(ctx).pop(true),
-                              child: const Text('비교 화면으로'),
-                            ),
-                          ],
-                        ),
-                      );
-
-                      if (mounted) {
-                        if (shouldContinue == true) {
-                          router.go('/comparison/${widget.sessionId}');
-                        } else {
-                          router.go('/');
-                        }
-                      }
-                    }
                   }
-                } else {
-                  // uploadFuture가 null이면 바로 이동
-                  if (mounted) {
-                    router.go('/comparison/${widget.sessionId}');
-                  }
-                }
-              }
-            },
-            child: Text(
-              widget.shootingType == 'before' ? 'After 바로 촬영' : '비교하기',
-            ),
+                },
+                child: Text(
+                  widget.shootingType == 'before' ? 'After 바로 촬영' : '비교하기',
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -568,7 +588,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
         imageFile: imageFile,
         userId: userId,
         folder: widget.shootingType,
-        customFileName: '${widget.sessionId}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        customFileName:
+            '${widget.sessionId}_${DateTime.now().millisecondsSinceEpoch}.jpg',
       );
 
       // 임시 파일 삭제
@@ -596,10 +617,20 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       }
       await firestore.updateSession(updatedSession);
 
+      if (widget.shootingType == 'after') {
+        // After까지 올라온 시점에만 정렬본 쌍을 생성한다.
+        updatedSession = await _tryUploadAlignedImages(
+          currentSession: updatedSession,
+          userId: userId,
+        );
+      }
+
       // Provider 갱신
       if (mounted) {
         ref.invalidate(sessionListProvider(widget.customerId));
-        await ref.read(customerActionsProvider).updateLastShooting(widget.customerId);
+        await ref
+            .read(customerActionsProvider)
+            .updateLastShooting(widget.customerId);
       }
     } catch (e) {
       // debugPrint('백그라운드 업로드 실패: $e');
@@ -610,12 +641,123 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     }
   }
 
+  Future<ShootingSession> _tryUploadAlignedImages({
+    required ShootingSession currentSession,
+    required String userId,
+  }) async {
+    final firestore = ref.read(firestoreServiceProvider);
+    final storage = ref.read(storageServiceProvider);
+
+    final beforeUrl =
+        currentSession.beforeImageUrl ?? await _waitForBeforeImageUrl();
+    final afterUrl = currentSession.afterImageUrl;
+
+    // 둘 중 하나라도 없으면 정렬본 생성은 건너뛴다.
+    if (beforeUrl == null || beforeUrl.isEmpty) return currentSession;
+    if (afterUrl == null || afterUrl.isEmpty) return currentSession;
+
+    final aligner = FaceAlignmentService();
+    File? alignedBeforeFile;
+    File? alignedAfterFile;
+    String? alignedBeforeUrl;
+    String? alignedAfterUrl;
+
+    try {
+      final alignedPair = await aligner.alignPair(
+        beforePath: beforeUrl,
+        afterPath: afterUrl,
+      );
+
+      // 얼굴 검출 실패 등으로 정렬 불가하면 원본 플로우 유지.
+      if (alignedPair == null) return currentSession;
+
+      final tempDir = await getTemporaryDirectory();
+      final ts = DateTime.now().millisecondsSinceEpoch;
+
+      alignedBeforeFile = File(
+        '${tempDir.path}/aligned_before_${widget.sessionId}_$ts.jpg',
+      );
+      alignedAfterFile = File(
+        '${tempDir.path}/aligned_after_${widget.sessionId}_$ts.jpg',
+      );
+
+      await alignedBeforeFile.writeAsBytes(
+        alignedPair.beforeBytes,
+        flush: true,
+      );
+      await alignedAfterFile.writeAsBytes(alignedPair.afterBytes, flush: true);
+
+      alignedBeforeUrl = await storage.uploadImage(
+        imageFile: alignedBeforeFile,
+        userId: userId,
+        folder: 'aligned_before',
+        customFileName: '${widget.sessionId}_${ts}_aligned_before.jpg',
+      );
+
+      alignedAfterUrl = await storage.uploadImage(
+        imageFile: alignedAfterFile,
+        userId: userId,
+        folder: 'aligned_after',
+        customFileName: '${widget.sessionId}_${ts}_aligned_after.jpg',
+      );
+
+      // 최신 세션을 다시 읽어 병합 저장해 동시 업데이트 충돌을 줄인다.
+      final latestSession = await firestore.getSession(widget.sessionId);
+      if (latestSession == null) return currentSession;
+
+      final merged = latestSession.copyWith(
+        alignedBeforeUrl: alignedBeforeUrl,
+        alignedAfterUrl: alignedAfterUrl,
+      );
+
+      await firestore.updateSession(merged);
+      return merged;
+    } catch (e) {
+      debugPrint('Aligned image upload failed: $e');
+
+      // before만 업로드된 반쪽 상태는 정리한다.
+      if (alignedBeforeUrl != null && alignedAfterUrl == null) {
+        try {
+          await storage.deleteImageByUrl(alignedBeforeUrl);
+        } catch (_) {}
+      }
+
+      return currentSession;
+    } finally {
+      await aligner.dispose();
+      if (alignedBeforeFile != null) {
+        try {
+          await alignedBeforeFile.delete();
+        } catch (_) {}
+      }
+      if (alignedAfterFile != null) {
+        try {
+          await alignedAfterFile.delete();
+        } catch (_) {}
+      }
+    }
+  }
+
+  Future<String?> _waitForBeforeImageUrl() async {
+    final firestore = ref.read(firestoreServiceProvider);
+
+    // Before 업로드가 늦는 케이스를 짧게 폴링해서 정렬 누락을 줄인다.
+    for (int i = 0; i < 10; i++) {
+      final session = await firestore.getSession(widget.sessionId);
+      final beforeUrl = session?.beforeImageUrl;
+      if (beforeUrl != null && beforeUrl.isNotEmpty) {
+        return beforeUrl;
+      }
+      await Future.delayed(const Duration(milliseconds: 800));
+    }
+
+    return null;
+  }
+
   void _navigateNext(ShootingSession session) {
     if (widget.shootingType == 'before') {
       // After 촬영으로 이동
-      context.go(
-        '/camera/${widget.customerId}/${widget.sessionId}/after',
-      );
+      context.go('/camera/${widget.customerId}/${widget.sessionId}/after');
     } else {
       // 비교 화면으로 이동
       context.go('/comparison/${widget.sessionId}');
@@ -631,9 +773,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
         children: [
           // 카메라 프리뷰
           if (_isInitialized && _cameraController != null)
-            Center(
-              child: CameraPreview(_cameraController!),
-            )
+            Center(child: CameraPreview(_cameraController!))
           else
             const Center(
               child: CircularProgressIndicator(color: AppColors.primary),
@@ -659,12 +799,15 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                   onPressed: () => context.go('/'),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                    color: widget.shootingType == 'before'
-                        ? AppColors.primary.withValues(alpha: 0.8)
-                        : AppColors.accent.withValues(alpha: 0.8),
+                    color:
+                        widget.shootingType == 'before'
+                            ? AppColors.primary.withValues(alpha: 0.8)
+                            : AppColors.accent.withValues(alpha: 0.8),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -702,9 +845,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                       color: _canShoot ? Colors.white : Colors.white38,
                       width: 4,
                     ),
-                    color: _canShoot
-                        ? Colors.white.withValues(alpha: 0.3)
-                        : Colors.transparent,
+                    color:
+                        _canShoot
+                            ? Colors.white.withValues(alpha: 0.3)
+                            : Colors.transparent,
                   ),
                   child: Center(
                     child: AnimatedContainer(

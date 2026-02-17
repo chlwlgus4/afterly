@@ -18,6 +18,20 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
   ShootingSession? _session;
   bool _isLoading = true;
 
+  // 비교 화면과 동일하게 정렬본 우선 표시.
+  String? get _beforePreviewUrl {
+    final aligned = _session?.alignedBeforeUrl;
+    if (aligned != null && aligned.isNotEmpty) return aligned;
+    return _session?.beforeImageUrl;
+  }
+
+  // 비교 화면과 동일하게 정렬본 우선 표시.
+  String? get _afterPreviewUrl {
+    final aligned = _session?.alignedAfterUrl;
+    if (aligned != null && aligned.isNotEmpty) return aligned;
+    return _session?.afterImageUrl;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -36,9 +50,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_session == null || !_session!.hasAnalysis) {
@@ -141,7 +153,8 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => context.go('/comparison/${widget.sessionId}'),
+                    onPressed:
+                        () => context.go('/comparison/${widget.sessionId}'),
                     icon: const Icon(Icons.compare_arrows),
                     label: const Text('비교 다시보기'),
                     style: OutlinedButton.styleFrom(
@@ -173,7 +186,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
       height: 200,
       child: Row(
         children: [
-          if (_session!.beforeImageUrl != null)
+          if (_beforePreviewUrl != null)
             Expanded(
               child: Column(
                 children: [
@@ -181,12 +194,14 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: Image.network(
-                        _session!.beforeImageUrl!,
+                        _beforePreviewUrl!,
                         fit: BoxFit.cover,
                         width: double.infinity,
                         loadingBuilder: (context, child, loadingProgress) {
                           if (loadingProgress == null) return child;
-                          return const Center(child: CircularProgressIndicator());
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
                         },
                         errorBuilder: (context, error, stackTrace) {
                           return Container(
@@ -202,14 +217,16 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                     'BEFORE',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                 ],
               ),
             ),
           const SizedBox(width: 12),
-          if (_session!.afterImageUrl != null)
+          if (_afterPreviewUrl != null)
             Expanded(
               child: Column(
                 children: [
@@ -217,12 +234,14 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: Image.network(
-                        _session!.afterImageUrl!,
+                        _afterPreviewUrl!,
                         fit: BoxFit.cover,
                         width: double.infinity,
                         loadingBuilder: (context, child, loadingProgress) {
                           if (loadingProgress == null) return child;
-                          return const Center(child: CircularProgressIndicator());
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
                         },
                         errorBuilder: (context, error, stackTrace) {
                           return Container(
@@ -238,7 +257,9 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                     'AFTER',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                 ],
@@ -263,16 +284,18 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
+              const Icon(
+                Icons.auto_awesome,
+                color: AppColors.primary,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 '분석 요약',
@@ -362,7 +385,9 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                     description,
                     style: TextStyle(
                       fontSize: 14,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                 ],

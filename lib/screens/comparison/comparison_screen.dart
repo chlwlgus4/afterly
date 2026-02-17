@@ -37,6 +37,20 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
   // 슬라이더 모드 - Before 이미지 상하 위치 조정
   double _beforeVerticalOffset = 0.0;
 
+  // 정렬본이 있으면 우선 사용하고, 없으면 원본으로 fallback.
+  String get _beforeDisplayUrl {
+    final aligned = _session?.alignedBeforeUrl;
+    if (aligned != null && aligned.isNotEmpty) return aligned;
+    return _session!.beforeImageUrl!;
+  }
+
+  // 정렬본이 있으면 우선 사용하고, 없으면 원본으로 fallback.
+  String get _afterDisplayUrl {
+    final aligned = _session?.alignedAfterUrl;
+    if (aligned != null && aligned.isNotEmpty) return aligned;
+    return _session!.afterImageUrl!;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -61,16 +75,19 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
       return;
     }
 
-    final hasBeforeImage = session.beforeImageUrl != null && session.beforeImageUrl!.isNotEmpty;
-    final hasAfterImage = session.afterImageUrl != null && session.afterImageUrl!.isNotEmpty;
+    final hasBeforeImage =
+        session.beforeImageUrl != null && session.beforeImageUrl!.isNotEmpty;
+    final hasAfterImage =
+        session.afterImageUrl != null && session.afterImageUrl!.isNotEmpty;
 
     if (!hasBeforeImage || !hasAfterImage) {
       setState(() {
         _session = session;
         _isLoading = false;
-        _errorMessage = !hasBeforeImage
-            ? 'Before 이미지를 찾을 수 없습니다.\n홈에서 새로 촬영해주세요.'
-            : 'After 이미지를 찾을 수 없습니다.\n촬영을 완료해주세요.';
+        _errorMessage =
+            !hasBeforeImage
+                ? 'Before 이미지를 찾을 수 없습니다.\n홈에서 새로 촬영해주세요.'
+                : 'After 이미지를 찾을 수 없습니다.\n촬영을 완료해주세요.';
       });
       return;
     }
@@ -98,8 +115,8 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
     try {
       final service = ImageAnalysisService();
       final result = await service.analyze(
-        beforePath: _session!.beforeImageUrl!,
-        afterPath: _session!.afterImageUrl!,
+        beforePath: _beforeDisplayUrl,
+        afterPath: _afterDisplayUrl,
       );
 
       _analysisTimer?.cancel();
@@ -121,9 +138,9 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
       _analysisTimer?.cancel();
       if (mounted) {
         setState(() => _isAnalyzing = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('분석 실패: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('분석 실패: $e')));
       }
     }
   }
@@ -138,33 +155,53 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('이미지 저장', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white)),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.compare, color: AppColors.primary),
-              title: const Text('Before + After 비교 이미지', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('두 사진을 나란히 합쳐서 저장', style: TextStyle(color: Color(0xFF9E9EB8))),
-              onTap: () => Navigator.pop(context, 'both'),
+      builder:
+          (context) => Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '이미지 저장',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: const Icon(Icons.compare, color: AppColors.primary),
+                  title: const Text(
+                    'Before + After 비교 이미지',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  subtitle: const Text(
+                    '두 사진을 나란히 합쳐서 저장',
+                    style: TextStyle(color: Color(0xFF9E9EB8)),
+                  ),
+                  onTap: () => Navigator.pop(context, 'both'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo, color: AppColors.primary),
+                  title: const Text(
+                    'Before 이미지만',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  onTap: () => Navigator.pop(context, 'before'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo, color: AppColors.accent),
+                  title: const Text(
+                    'After 이미지만',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  onTap: () => Navigator.pop(context, 'after'),
+                ),
+              ],
             ),
-            ListTile(
-              leading: const Icon(Icons.photo, color: AppColors.primary),
-              title: const Text('Before 이미지만', style: TextStyle(color: Colors.white)),
-              onTap: () => Navigator.pop(context, 'before'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo, color: AppColors.accent),
-              title: const Text('After 이미지만', style: TextStyle(color: Colors.white)),
-              onTap: () => Navigator.pop(context, 'after'),
-            ),
-          ],
-        ),
-      ),
+          ),
     );
 
     if (choice == null || !mounted) return;
@@ -174,31 +211,31 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
     try {
       if (choice == 'both') {
         await ImageExportService.saveComparison(
-          beforePath: _session!.beforeImageUrl!,
-          afterPath: _session!.afterImageUrl!,
+          beforePath: _beforeDisplayUrl,
+          afterPath: _afterDisplayUrl,
         );
       } else if (choice == 'before') {
         await ImageExportService.saveSingle(
-          imagePath: _session!.beforeImageUrl!,
+          imagePath: _beforeDisplayUrl,
           label: 'BEFORE',
         );
       } else {
         await ImageExportService.saveSingle(
-          imagePath: _session!.afterImageUrl!,
+          imagePath: _afterDisplayUrl,
           label: 'AFTER',
         );
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('사진 앨범에 저장되었습니다')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('사진 앨범에 저장되었습니다')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('저장 실패: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('저장 실패: $e')));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -208,9 +245,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_errorMessage != null) {
@@ -257,8 +292,8 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
               _isOverlayMode
                   ? Icons.layers
                   : _isSliderMode
-                      ? Icons.compare
-                      : Icons.toggle_on,
+                  ? Icons.compare
+                  : Icons.toggle_on,
               color: AppColors.primary,
             ),
             onPressed: () {
@@ -273,9 +308,10 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                 }
               });
             },
-            tooltip: _isOverlayMode
-                ? '토글 모드'
-                : _isSliderMode
+            tooltip:
+                _isOverlayMode
+                    ? '토글 모드'
+                    : _isSliderMode
                     ? '오버레이 모드'
                     : '슬라이더 모드',
           ),
@@ -302,9 +338,10 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
       body: Column(
         children: [
           Expanded(
-            child: _isOverlayMode
-                ? _buildOverlayView()
-                : _isSliderMode
+            child:
+                _isOverlayMode
+                    ? _buildOverlayView()
+                    : _isSliderMode
                     ? _buildSliderView()
                     : _buildToggleView(),
           ),
@@ -322,14 +359,16 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
         return GestureDetector(
           onHorizontalDragUpdate: (details) {
             setState(() {
-              _sliderPosition =
-                  (details.localPosition.dx / width).clamp(0.0, 1.0);
+              _sliderPosition = (details.localPosition.dx / width).clamp(
+                0.0,
+                1.0,
+              );
             });
           },
           onVerticalDragUpdate: (details) {
             setState(() {
-              _beforeVerticalOffset =
-                  (_beforeVerticalOffset + details.delta.dy).clamp(-100.0, 100.0);
+              _beforeVerticalOffset = (_beforeVerticalOffset + details.delta.dy)
+                  .clamp(-100.0, 100.0);
             });
           },
           child: Stack(
@@ -337,7 +376,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
             children: [
               // After 이미지 (전체 배경)
               Image.network(
-                _session!.afterImageUrl!,
+                _afterDisplayUrl,
                 fit: BoxFit.contain,
                 width: width,
                 height: height,
@@ -348,7 +387,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                 child: Transform.translate(
                   offset: Offset(0, _beforeVerticalOffset),
                   child: Image.network(
-                    _session!.beforeImageUrl!,
+                    _beforeDisplayUrl,
                     fit: BoxFit.contain,
                     width: width,
                     height: height,
@@ -359,7 +398,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
               if (_showGuide)
                 const FaceGuideOverlay(
                   canShoot: true,
-                  showMessage: false,  // 비교 화면에서는 메시지 숨김
+                  showMessage: false, // 비교 화면에서는 메시지 숨김
                 ),
               // 슬라이더 라인
               Positioned(
@@ -388,8 +427,16 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.chevron_left, size: 16, color: AppColors.primary),
-                      Icon(Icons.chevron_right, size: 16, color: AppColors.primary),
+                      Icon(
+                        Icons.chevron_left,
+                        size: 16,
+                        color: AppColors.primary,
+                      ),
+                      Icon(
+                        Icons.chevron_right,
+                        size: 16,
+                        color: AppColors.primary,
+                      ),
                     ],
                   ),
                 ),
@@ -413,8 +460,10 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                   right: 0,
                   child: Center(
                     child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.7),
                         borderRadius: BorderRadius.circular(12),
@@ -422,19 +471,28 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.swap_vert, color: Colors.white, size: 14),
+                          const Icon(
+                            Icons.swap_vert,
+                            color: Colors.white,
+                            size: 14,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             '위치 조정: ${_beforeVerticalOffset > 0 ? '+' : ''}${_beforeVerticalOffset.toInt()}px',
                             style: const TextStyle(
-                                color: Colors.white, fontSize: 12),
+                              color: Colors.white,
+                              fontSize: 12,
+                            ),
                           ),
                           const SizedBox(width: 8),
                           GestureDetector(
-                            onTap: () =>
-                                setState(() => _beforeVerticalOffset = 0),
-                            child: const Icon(Icons.replay,
-                                color: AppColors.accent, size: 16),
+                            onTap:
+                                () => setState(() => _beforeVerticalOffset = 0),
+                            child: const Icon(
+                              Icons.replay,
+                              color: AppColors.accent,
+                              size: 16,
+                            ),
                           ),
                         ],
                       ),
@@ -458,9 +516,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
             child: Image.network(
-              _showBefore
-                  ? _session!.beforeImageUrl!
-                  : _session!.afterImageUrl!,
+              _showBefore ? _beforeDisplayUrl : _afterDisplayUrl,
               key: ValueKey(_showBefore),
               fit: BoxFit.contain,
             ),
@@ -469,7 +525,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
           if (_showGuide)
             const FaceGuideOverlay(
               canShoot: true,
-              showMessage: false,  // 비교 화면에서는 메시지 숨김
+              showMessage: false, // 비교 화면에서는 메시지 숨김
             ),
           // 상단 레이블
           Positioned(
@@ -529,40 +585,54 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
       fit: StackFit.expand,
       children: [
         // After 이미지 (배경)
-        Image.network(
-          _session!.afterImageUrl!,
-          fit: BoxFit.contain,
-        ),
+        Image.network(_afterDisplayUrl, fit: BoxFit.contain),
         // Before 오버레이
         Opacity(
           opacity: _overlayOpacity,
-          child: _isDifferenceMode
-              ? ColorFiltered(
-                  colorFilter: const ColorFilter.matrix(<double>[
-                    -1, 0, 0, 0, 255,
-                    0, -1, 0, 0, 255,
-                    0, 0, -1, 0, 255,
-                    0, 0, 0, 1, 0,
-                  ]),
-                  child: Image.network(
-                    _session!.beforeImageUrl!,
+          child:
+              _isDifferenceMode
+                  ? ColorFiltered(
+                    colorFilter: const ColorFilter.matrix(<double>[
+                      -1,
+                      0,
+                      0,
+                      0,
+                      255,
+                      0,
+                      -1,
+                      0,
+                      0,
+                      255,
+                      0,
+                      0,
+                      -1,
+                      0,
+                      255,
+                      0,
+                      0,
+                      0,
+                      1,
+                      0,
+                    ]),
+                    child: Image.network(
+                      _beforeDisplayUrl,
+                      fit: BoxFit.contain,
+                      color: Colors.white,
+                      colorBlendMode: BlendMode.difference,
+                    ),
+                  )
+                  : Image.network(
+                    _beforeDisplayUrl,
                     fit: BoxFit.contain,
-                    color: Colors.white,
-                    colorBlendMode: BlendMode.difference,
+                    color: AppColors.primary.withValues(alpha: 0.4),
+                    colorBlendMode: BlendMode.color,
                   ),
-                )
-              : Image.network(
-                  _session!.beforeImageUrl!,
-                  fit: BoxFit.contain,
-                  color: AppColors.primary.withValues(alpha: 0.4),
-                  colorBlendMode: BlendMode.color,
-                ),
         ),
         // 가이드라인
         if (_showGuide)
           const FaceGuideOverlay(
             canShoot: true,
-            showMessage: false,  // 비교 화면에서는 메시지 숨김
+            showMessage: false, // 비교 화면에서는 메시지 숨김
           ),
         // 레이블
         Positioned(
@@ -595,23 +665,24 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                   children: [
                     Expanded(
                       child: GestureDetector(
-                        onTap: () =>
-                            setState(() => _isDifferenceMode = false),
+                        onTap: () => setState(() => _isDifferenceMode = false),
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           decoration: BoxDecoration(
-                            color: !_isDifferenceMode
-                                ? AppColors.primary
-                                : Colors.transparent,
+                            color:
+                                !_isDifferenceMode
+                                    ? AppColors.primary
+                                    : Colors.transparent,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             '겹침',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: !_isDifferenceMode
-                                  ? Colors.white
-                                  : AppColors.textSecondary,
+                              color:
+                                  !_isDifferenceMode
+                                      ? Colors.white
+                                      : AppColors.textSecondary,
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
@@ -622,23 +693,24 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: GestureDetector(
-                        onTap: () =>
-                            setState(() => _isDifferenceMode = true),
+                        onTap: () => setState(() => _isDifferenceMode = true),
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           decoration: BoxDecoration(
-                            color: _isDifferenceMode
-                                ? AppColors.accent
-                                : Colors.transparent,
+                            color:
+                                _isDifferenceMode
+                                    ? AppColors.accent
+                                    : Colors.transparent,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             '차이 강조',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: _isDifferenceMode
-                                  ? Colors.white
-                                  : AppColors.textSecondary,
+                              color:
+                                  _isDifferenceMode
+                                      ? Colors.white
+                                      : AppColors.textSecondary,
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
@@ -706,9 +778,10 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected
-              ? (isBefore ? AppColors.primary : AppColors.accent)
-              : Colors.transparent,
+          color:
+              isSelected
+                  ? (isBefore ? AppColors.primary : AppColors.accent)
+                  : Colors.transparent,
           borderRadius: BorderRadius.circular(25),
         ),
         child: Text(
@@ -758,8 +831,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
           if (_isAnalyzing) ...[
             const LinearProgressIndicator(
               backgroundColor: Color(0xFF25253D),
-              valueColor:
-                  AlwaysStoppedAnimation<Color>(AppColors.primary),
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
             ),
             const SizedBox(height: 10),
             Text(
@@ -790,16 +862,17 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                 flex: 2,
                 child: ElevatedButton.icon(
                   onPressed: _isAnalyzing ? null : _runAnalysis,
-                  icon: _isAnalyzing
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.analytics),
+                  icon:
+                      _isAnalyzing
+                          ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                          : const Icon(Icons.analytics),
                   label: Text(_isAnalyzing ? '분석 중...' : '분석하기'),
                 ),
               ),
