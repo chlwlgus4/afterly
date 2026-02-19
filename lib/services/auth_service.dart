@@ -110,13 +110,28 @@ class AuthService {
 
   // 비밀번호 재설정 이메일 발송
   Future<void> sendPasswordResetEmail(String email) async {
+    final normalizedEmail = email.trim();
+
     try {
       final callable = _functions.httpsCallable(
         'requestPasswordReset',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
       );
-      await callable.call(<String, String>{'email': email.trim()});
+      await callable.call(<String, String>{'email': normalizedEmail});
     } on FirebaseFunctionsException catch (e) {
+      if (_shouldFallbackToClientPasswordReset(e.code)) {
+        try {
+          // Functions 보호 경로가 준비되지 않은 환경에서는 Firebase 기본 경로로 폴백.
+          await _auth.sendPasswordResetEmail(email: normalizedEmail);
+          return;
+        } on FirebaseAuthException catch (authError) {
+          if (authError.code == 'user-not-found') {
+            // 계정 존재 여부 노출 방지
+            return;
+          }
+          throw _handleAuthException(authError);
+        }
+      }
       throw _handleFunctionsException(e);
     }
   }
@@ -314,11 +329,24 @@ class AuthService {
       case 'resource-exhausted':
         return '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.';
       case 'failed-precondition':
-        return '보안 설정이 아직 완료되지 않았습니다. 관리자에게 문의해주세요.';
+        return '비밀번호 재설정 설정이 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.';
       case 'unavailable':
         return '서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.';
       default:
         return '비밀번호 재설정 요청 중 오류가 발생했습니다.';
+    }
+  }
+
+  bool _shouldFallbackToClientPasswordReset(String code) {
+    switch (code) {
+      case 'failed-precondition':
+      case 'unauthenticated':
+      case 'unavailable':
+      case 'internal':
+      case 'deadline-exceeded':
+        return true;
+      default:
+        return false;
     }
   }
 }

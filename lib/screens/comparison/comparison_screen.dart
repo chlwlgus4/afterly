@@ -199,9 +199,18 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  _buildGuideLine('가이드라인', '얼굴 정렬이 어긋나 보이면 가이드라인 버튼으로 위치를 먼저 점검하세요.'),
-                  _buildGuideLine('슬라이더 세로 조정', '슬라이더 모드에서 상하 드래그로 Before 위치를 미세 조정할 수 있습니다.'),
-                  _buildGuideLine('분석하기', '비교 확인 후 하단 분석하기를 누르면 상세 점수 화면으로 이동합니다.'),
+                  _buildGuideLine(
+                    '가이드라인',
+                    '얼굴 정렬이 어긋나 보이면 가이드라인 버튼으로 위치를 먼저 점검하세요.',
+                  ),
+                  _buildGuideLine(
+                    '슬라이더 세로 조정',
+                    '슬라이더 모드에서 상하 드래그로 Before 위치를 미세 조정할 수 있습니다.',
+                  ),
+                  _buildGuideLine(
+                    '분석하기',
+                    '비교 확인 후 하단 분석하기를 누르면 상세 점수 화면으로 이동합니다.',
+                  ),
                 ],
               ),
             ),
@@ -257,6 +266,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
         jawlineScore: result.jawlineScore,
         symmetryScore: result.symmetryScore,
         skinToneScore: result.skinToneScore,
+        eyebrowScore: result.eyebrowScore,
         summary: result.summary,
       );
       await firestore.updateSession(updatedSession);
@@ -615,9 +625,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                       ),
                       decoration: BoxDecoration(
                         color: _overlayPanelColor,
-                        border: Border.all(
-                          color: _panelBorderColor,
-                        ),
+                        border: Border.all(color: _panelBorderColor),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -721,10 +729,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
             child: Center(
               child: Text(
                 '화면을 탭하여 전환',
-                style: TextStyle(
-                  color: _mutedPanelTextColor,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: _mutedPanelTextColor, fontSize: 12),
               ),
             ),
           ),
@@ -992,10 +997,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
             const SizedBox(height: 10),
             Text(
               '분석 중... $_analysisSeconds초 경과 (약 5~10초 소요)',
-              style: TextStyle(
-                fontSize: 12,
-                color: _mutedPanelTextColor,
-              ),
+              style: TextStyle(fontSize: 12, color: _mutedPanelTextColor),
             ),
             const SizedBox(height: 12),
           ],

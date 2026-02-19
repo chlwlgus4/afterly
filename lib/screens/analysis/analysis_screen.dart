@@ -86,7 +86,11 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+                const Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: AppColors.error,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   _session == null
@@ -182,6 +186,16 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                 description: _getSkinToneDescription(_session!.skinToneScore!),
                 color: _getScoreColor(_session!.skinToneScore!),
               ),
+              if (_session!.eyebrowScore != null) ...[
+                const SizedBox(height: 12),
+                _buildScoreCard(
+                  icon: Icons.brush_outlined,
+                  title: '눈썹 라인 변화',
+                  score: _session!.eyebrowScore!,
+                  description: _getEyebrowDescription(_session!.eyebrowScore!),
+                  color: _getScoreColor(_session!.eyebrowScore!),
+                ),
+              ],
 
               const SizedBox(height: 32),
 
@@ -346,7 +360,9 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.4 : 0.3),
+          color: theme.colorScheme.primary.withValues(
+            alpha: isDark ? 0.4 : 0.3,
+          ),
         ),
       ),
       child: Column(
@@ -413,7 +429,9 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       strokeWidth: 5,
                       backgroundColor:
                           isDark
-                              ? AppColors.darkSurfaceLight.withValues(alpha: 0.9)
+                              ? AppColors.darkSurfaceLight.withValues(
+                                alpha: 0.9,
+                              )
                               : AppColors.surfaceLight,
                       valueColor: AlwaysStoppedAnimation<Color>(color),
                     ),
@@ -489,5 +507,11 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     if (score >= 70) return '피부 톤 균일도가 크게 향상되었습니다';
     if (score >= 40) return '피부 톤에 변화가 감지됩니다';
     return '피부 톤 변화가 크지 않습니다';
+  }
+
+  String _getEyebrowDescription(double score) {
+    if (score >= 70) return '눈썹 라인 변화가 뚜렷하게 관찰됩니다';
+    if (score >= 40) return '눈썹 라인에 미세한 변화가 감지됩니다';
+    return '눈썹 라인 변화가 크지 않습니다';
   }
 }

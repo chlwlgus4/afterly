@@ -9,6 +9,7 @@ class ShootingSession {
   final double? jawlineScore;
   final double? symmetryScore;
   final double? skinToneScore;
+  final double? eyebrowScore;
   final String? summary;
   final DateTime createdAt;
 
@@ -23,6 +24,7 @@ class ShootingSession {
     this.jawlineScore,
     this.symmetryScore,
     this.skinToneScore,
+    this.eyebrowScore,
     this.summary,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -38,12 +40,16 @@ class ShootingSession {
       'jawlineScore': jawlineScore,
       'symmetryScore': symmetryScore,
       'skinToneScore': skinToneScore,
+      'eyebrowScore': eyebrowScore,
       'summary': summary,
       'createdAt': createdAt.toIso8601String(),
     };
   }
 
-  factory ShootingSession.fromMap(Map<String, dynamic> map, {String? documentId}) {
+  factory ShootingSession.fromMap(
+    Map<String, dynamic> map, {
+    String? documentId,
+  }) {
     return ShootingSession(
       id: documentId,
       userId: map['userId'] as String,
@@ -55,6 +61,7 @@ class ShootingSession {
       jawlineScore: (map['jawlineScore'] as num?)?.toDouble(),
       symmetryScore: (map['symmetryScore'] as num?)?.toDouble(),
       skinToneScore: (map['skinToneScore'] as num?)?.toDouble(),
+      eyebrowScore: (map['eyebrowScore'] as num?)?.toDouble(),
       summary: map['summary'] as String?,
       createdAt: DateTime.parse(map['createdAt'] as String),
     );
@@ -71,6 +78,7 @@ class ShootingSession {
     double? jawlineScore,
     double? symmetryScore,
     double? skinToneScore,
+    double? eyebrowScore,
     String? summary,
     DateTime? createdAt,
   }) {
@@ -85,6 +93,7 @@ class ShootingSession {
       jawlineScore: jawlineScore ?? this.jawlineScore,
       symmetryScore: symmetryScore ?? this.symmetryScore,
       skinToneScore: skinToneScore ?? this.skinToneScore,
+      eyebrowScore: eyebrowScore ?? this.eyebrowScore,
       summary: summary ?? this.summary,
       createdAt: createdAt ?? this.createdAt,
     );
