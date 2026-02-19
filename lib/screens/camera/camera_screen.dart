@@ -366,7 +366,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       barrierDismissible: false,
       builder:
           (context) => AlertDialog(
-            backgroundColor: AppColors.surface,
+            backgroundColor: Theme.of(context).colorScheme.surface,
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -447,7 +447,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                                   child: AlertDialog(
                                     content: Column(
                                       mainAxisSize: MainAxisSize.min,
-                                      children: const [
+                                      children: [
                                         CircularProgressIndicator(),
                                         SizedBox(height: 16),
                                         Text('이미지 저장 중...'),
@@ -456,7 +456,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                                           '업로드 완료 시 자동으로 이동합니다',
                                           style: TextStyle(
                                             fontSize: 12,
-                                            color: AppColors.textSecondary,
+                                            color: Theme.of(
+                                              dialogContext,
+                                            ).colorScheme.onSurface.withValues(
+                                              alpha: 0.65,
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -518,7 +522,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                             context: context,
                             builder:
                                 (ctx) => AlertDialog(
-                                  backgroundColor: AppColors.background,
+                                  backgroundColor:
+                                      Theme.of(ctx).colorScheme.surface,
                                   title: const Text('업로드 실패'),
                                   content: SelectableText(
                                     '이미지 업로드에 실패했습니다.\n\n'

@@ -5,6 +5,8 @@ import 'screens/auth/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
 import 'screens/auth/password_reset_screen.dart';
+import 'screens/auth/mfa_setup_screen.dart';
+import 'screens/auth/mfa_signin_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/camera/camera_screen.dart';
 import 'screens/comparison/comparison_screen.dart';
@@ -25,26 +27,54 @@ import 'models/app_settings.dart' as models;
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
+  final mfaEnrolled = ref.watch(mfaEnrolledProvider).valueOrNull;
+  final pendingMfaResolver = ref.watch(pendingMfaResolverProvider);
 
   return GoRouter(
     initialLocation: '/splash',
     redirect: (context, state) {
-      final isLoggedIn = authState.valueOrNull != null;
-      final isAuthRoute = state.matchedLocation == '/login' ||
+      final user = authState.valueOrNull;
+      final isLoggedIn = user != null;
+      final hasMfa = mfaEnrolled ?? false;
+      final hasPendingMfaSignIn = pendingMfaResolver != null;
+      final isAuthRoute =
+          state.matchedLocation == '/login' ||
           state.matchedLocation == '/signup' ||
-          state.matchedLocation == '/password-reset';
+          state.matchedLocation == '/password-reset' ||
+          state.matchedLocation == '/mfa-signin';
       final isSplashRoute = state.matchedLocation == '/splash';
+      final isMfaSetupRoute = state.matchedLocation == '/mfa-setup';
+      final isMfaSignInRoute = state.matchedLocation == '/mfa-signin';
 
       // Allow splash screen to show first
       if (isSplashRoute) return null;
+
+      // 2단계 인증 로그인 세션 없이 접근한 경우 로그인으로 이동
+      if (isMfaSignInRoute && !hasPendingMfaSignIn) {
+        return '/login';
+      }
 
       // Redirect to login if not logged in and not on auth routes
       if (!isLoggedIn && !isAuthRoute) {
         return '/login';
       }
 
-      // Redirect to home if logged in and on auth routes
-      if (isLoggedIn && isAuthRoute) {
+      // 로그인 후 2단계 인증 미설정 사용자는 설정 화면으로 강제 이동
+      if (isLoggedIn && !hasMfa && !isMfaSetupRoute) {
+        return '/mfa-setup';
+      }
+
+      // 2단계 인증이 필요한 사용자가 설정을 마치면 홈으로 이동
+      if (isLoggedIn && hasMfa && isMfaSetupRoute) {
+        return '/';
+      }
+
+      // 로그인된 사용자는 일반 인증 화면 진입 차단
+      if (isLoggedIn &&
+          (state.matchedLocation == '/login' ||
+              state.matchedLocation == '/signup' ||
+              state.matchedLocation == '/password-reset' ||
+              state.matchedLocation == '/mfa-signin')) {
         return '/';
       }
 
@@ -55,10 +85,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/splash',
         builder: (context, state) => const SplashScreen(),
       ),
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/signup',
         builder: (context, state) => const SignUpScreen(),
@@ -68,9 +95,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const PasswordResetScreen(),
       ),
       GoRoute(
-        path: '/',
-        builder: (context, state) => const HomeScreen(),
+        path: '/mfa-setup',
+        builder: (context, state) => const MfaSetupScreen(),
       ),
+      GoRoute(
+        path: '/mfa-signin',
+        builder: (context, state) => const MfaSignInScreen(),
+      ),
+      GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
       GoRoute(
         path: '/camera/:customerId/:sessionId/:type',
         builder: (context, state) {
@@ -172,122 +204,213 @@ class _AfterlyAppState extends ConsumerState<AfterlyApp> {
       debugShowCheckedModeBanner: false,
       themeMode: _convertThemeMode(settings.themeMode),
       theme: ThemeData(
+        useMaterial3: true,
         brightness: Brightness.light,
         primaryColor: AppColors.primary,
         scaffoldBackgroundColor: AppColors.background,
         colorScheme: const ColorScheme.light(
           primary: AppColors.primary,
           secondary: AppColors.accent,
+          tertiary: AppColors.primaryLight,
+          error: AppColors.error,
           surface: AppColors.surface,
           onPrimary: Colors.white,
+          onSecondary: Colors.white,
+          onError: Colors.white,
           onSurface: AppColors.textPrimary,
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: AppColors.background,
+          backgroundColor: Colors.transparent,
           elevation: 0,
           centerTitle: true,
+          surfaceTintColor: Colors.transparent,
           foregroundColor: AppColors.textPrimary,
           iconTheme: IconThemeData(color: AppColors.textPrimary),
         ),
         cardTheme: CardThemeData(
           color: AppColors.surface,
+          margin: EdgeInsets.zero,
+          surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(24),
           ),
-          elevation: 0,
-          shadowColor: Colors.black.withValues(alpha: 0.05),
+          elevation: 2,
+          shadowColor: AppColors.primary.withValues(alpha: 0.1),
         ),
         dialogTheme: DialogTheme(
           backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
-          elevation: 8,
-          shadowColor: Colors.black.withValues(alpha: 0.1),
+          elevation: 4,
+          shadowColor: AppColors.primary.withValues(alpha: 0.16),
         ),
         bottomSheetTheme: BottomSheetThemeData(
           backgroundColor: AppColors.surface,
+          surfaceTintColor: Colors.transparent,
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           elevation: 8,
-          shadowColor: Colors.black.withValues(alpha: 0.1),
+          shadowColor: AppColors.primary.withValues(alpha: 0.16),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
+            disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.4),
+            disabledForegroundColor: Colors.white70,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(18),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-            elevation: 2,
-            shadowColor: AppColors.primary.withValues(alpha: 0.3),
+            elevation: 1,
+            shadowColor: AppColors.primary.withValues(alpha: 0.25),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.primaryDark,
+            side: BorderSide(
+              color: AppColors.surfaceLight.withValues(alpha: 0.9),
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            backgroundColor: AppColors.surface.withValues(alpha: 0.9),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.primaryDark,
+            textStyle: const TextStyle(fontWeight: FontWeight.w600),
           ),
         ),
         floatingActionButtonTheme: FloatingActionButtonThemeData(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
-          elevation: 4,
+          elevation: 2,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: AppColors.surfaceLight.withValues(alpha: 0.3),
+          fillColor: AppColors.surface,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
+            borderRadius: BorderRadius.circular(18),
+            borderSide: BorderSide(
+              color: AppColors.surfaceLight.withValues(alpha: 0.8),
+            ),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
+            borderRadius: BorderRadius.circular(18),
+            borderSide: BorderSide(
+              color: AppColors.surfaceLight.withValues(alpha: 0.8),
+            ),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             borderSide: const BorderSide(color: AppColors.primary, width: 2),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(color: AppColors.error, width: 1.2),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(color: AppColors.error, width: 2),
+          ),
+          hintStyle: const TextStyle(color: AppColors.textSecondary),
+          labelStyle: const TextStyle(color: AppColors.textSecondary),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 16,
+          ),
+        ),
+        snackBarTheme: SnackBarThemeData(
+          backgroundColor: AppColors.textPrimary,
+          contentTextStyle: const TextStyle(color: Colors.white),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        checkboxTheme: CheckboxThemeData(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          fillColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return AppColors.primary;
+            }
+            return AppColors.surface;
+          }),
+          side: BorderSide(
+            color: AppColors.textSecondary.withValues(alpha: 0.45),
+            width: 1.4,
+          ),
+        ),
+        switchTheme: SwitchThemeData(
+          thumbColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return AppColors.primary;
+            }
+            return AppColors.surface;
+          }),
+          trackColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return AppColors.primary.withValues(alpha: 0.35);
+            }
+            return AppColors.surfaceLight.withValues(alpha: 0.7);
+          }),
         ),
         dividerColor: AppColors.surfaceLight,
       ),
       darkTheme: ThemeData(
+        useMaterial3: true,
         brightness: Brightness.dark,
         primaryColor: AppColors.primary,
-        scaffoldBackgroundColor: const Color(0xFF121212),
+        scaffoldBackgroundColor: AppColors.darkBackground,
         colorScheme: const ColorScheme.dark(
-          primary: AppColors.primary,
-          secondary: AppColors.accent,
-          surface: Color(0xFF1E1E1E),
+          primary: AppColors.accent,
+          secondary: AppColors.primaryLight,
+          tertiary: AppColors.primary,
+          error: AppColors.error,
+          surface: AppColors.darkSurface,
           onPrimary: Colors.white,
+          onSecondary: Colors.white,
+          onError: Colors.white,
           onSurface: Colors.white,
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1E1E1E),
+          backgroundColor: Colors.transparent,
           elevation: 0,
           centerTitle: true,
+          surfaceTintColor: Colors.transparent,
           foregroundColor: Colors.white,
           iconTheme: IconThemeData(color: Colors.white),
         ),
         cardTheme: CardThemeData(
-          color: const Color(0xFF1E1E1E),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          elevation: 0,
-          shadowColor: Colors.black.withValues(alpha: 0.3),
-        ),
-        dialogTheme: DialogTheme(
-          backgroundColor: const Color(0xFF1E1E1E),
+          color: AppColors.darkSurface,
+          margin: EdgeInsets.zero,
+          surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
-          elevation: 8,
+          elevation: 2,
+          shadowColor: Colors.black.withValues(alpha: 0.35),
+        ),
+        dialogTheme: DialogTheme(
+          backgroundColor: AppColors.darkSurface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          elevation: 6,
           shadowColor: Colors.black.withValues(alpha: 0.5),
         ),
         bottomSheetTheme: BottomSheetThemeData(
-          backgroundColor: const Color(0xFF1E1E1E),
+          backgroundColor: AppColors.darkSurface,
+          surfaceTintColor: Colors.transparent,
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
@@ -296,42 +419,115 @@ class _AfterlyAppState extends ConsumerState<AfterlyApp> {
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
+            backgroundColor: AppColors.accent,
             foregroundColor: Colors.white,
+            disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.4),
+            disabledForegroundColor: Colors.white70,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(18),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-            elevation: 2,
-            shadowColor: AppColors.primary.withValues(alpha: 0.3),
+            elevation: 1,
+            shadowColor: AppColors.accent.withValues(alpha: 0.3),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.white,
+            side: BorderSide(
+              color: AppColors.darkSurfaceLight.withValues(alpha: 0.9),
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            backgroundColor: AppColors.darkSurface,
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.primaryLight,
+            textStyle: const TextStyle(fontWeight: FontWeight.w600),
           ),
         ),
         floatingActionButtonTheme: FloatingActionButtonThemeData(
-          backgroundColor: AppColors.primary,
+          backgroundColor: AppColors.accent,
           foregroundColor: Colors.white,
-          elevation: 4,
+          elevation: 2,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: const Color(0xFF2E2E2E),
+          fillColor: AppColors.darkSurfaceLight.withValues(alpha: 0.7),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
+            borderRadius: BorderRadius.circular(18),
+            borderSide: BorderSide(
+              color: AppColors.darkSurfaceLight.withValues(alpha: 0.95),
+            ),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
+            borderRadius: BorderRadius.circular(18),
+            borderSide: BorderSide(
+              color: AppColors.darkSurfaceLight.withValues(alpha: 0.95),
+            ),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: AppColors.primary, width: 2),
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(color: AppColors.accent, width: 2),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(color: AppColors.error, width: 1.2),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(color: AppColors.error, width: 2),
+          ),
+          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+          labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 16,
+          ),
         ),
-        dividerColor: const Color(0xFF2E2E2E),
+        snackBarTheme: SnackBarThemeData(
+          backgroundColor: AppColors.darkSurfaceLight,
+          contentTextStyle: const TextStyle(color: Colors.white),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        checkboxTheme: CheckboxThemeData(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          fillColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return AppColors.accent;
+            }
+            return AppColors.darkSurface;
+          }),
+          side: BorderSide(
+            color: Colors.white.withValues(alpha: 0.35),
+            width: 1.4,
+          ),
+        ),
+        switchTheme: SwitchThemeData(
+          thumbColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return AppColors.accent;
+            }
+            return AppColors.darkSurface;
+          }),
+          trackColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return AppColors.accent.withValues(alpha: 0.35);
+            }
+            return AppColors.darkSurfaceLight.withValues(alpha: 0.8);
+          }),
+        ),
+        dividerColor: AppColors.darkSurfaceLight,
       ),
       routerConfig: router,
     );

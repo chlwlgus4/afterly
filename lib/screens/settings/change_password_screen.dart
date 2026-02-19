@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/constants.dart';
 
 class ChangePasswordScreen extends ConsumerStatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -43,16 +44,14 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
       );
 
       // 2. 비밀번호 업데이트
-      await authService.updatePassword(
-        _newPasswordController.text,
-      );
+      await authService.updatePassword(_newPasswordController.text);
 
       // 3. 성공 메시지
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('비밀번호가 성공적으로 변경되었습니다'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
@@ -66,7 +65,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(e.toString()),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
@@ -107,10 +106,9 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withValues(alpha: 0.1),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(
@@ -126,10 +124,9 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                           '보안을 위해 현재 비밀번호를 먼저 확인합니다',
                           style: TextStyle(
                             fontSize: 14,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withValues(alpha: 0.8),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.8),
                           ),
                         ),
                       ),
@@ -151,8 +148,11 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                             : Icons.visibility,
                       ),
                       onPressed: () {
-                        setState(() =>
-                            _obscureCurrentPassword = !_obscureCurrentPassword);
+                        setState(
+                          () =>
+                              _obscureCurrentPassword =
+                                  !_obscureCurrentPassword,
+                        );
                       },
                     ),
                   ),
@@ -184,7 +184,8 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                       ),
                       onPressed: () {
                         setState(
-                            () => _obscureNewPassword = !_obscureNewPassword);
+                          () => _obscureNewPassword = !_obscureNewPassword,
+                        );
                       },
                     ),
                   ),
@@ -218,8 +219,11 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                             : Icons.visibility,
                       ),
                       onPressed: () {
-                        setState(() =>
-                            _obscureConfirmPassword = !_obscureConfirmPassword);
+                        setState(
+                          () =>
+                              _obscureConfirmPassword =
+                                  !_obscureConfirmPassword,
+                        );
                       },
                     ),
                   ),
@@ -243,22 +247,23 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
+                  child:
+                      _isLoading
+                          ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                          : const Text(
+                            '비밀번호 변경',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        )
-                      : const Text(
-                          '비밀번호 변경',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
                 ),
               ],
             ),

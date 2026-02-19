@@ -1,35 +1,64 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:async';
 import '../../providers/auth_provider.dart';
+import '../../utils/constants.dart';
 
 class PasswordResetScreen extends ConsumerStatefulWidget {
   const PasswordResetScreen({super.key});
 
   @override
-  ConsumerState<PasswordResetScreen> createState() => _PasswordResetScreenState();
+  ConsumerState<PasswordResetScreen> createState() =>
+      _PasswordResetScreenState();
 }
 
 class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
+  static const int _resendCooldownSeconds = 60;
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   bool _isLoading = false;
   bool _emailSent = false;
+  int _cooldownSeconds = 0;
+  Timer? _cooldownTimer;
 
   @override
   void dispose() {
+    _cooldownTimer?.cancel();
     _emailController.dispose();
     super.dispose();
   }
 
+  void _startCooldown() {
+    _cooldownTimer?.cancel();
+    setState(() => _cooldownSeconds = _resendCooldownSeconds);
+
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      if (_cooldownSeconds <= 1) {
+        timer.cancel();
+        setState(() => _cooldownSeconds = 0);
+        return;
+      }
+
+      setState(() => _cooldownSeconds--);
+    });
+  }
+
   Future<void> _sendResetEmail() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_cooldownSeconds > 0) return;
 
     setState(() => _isLoading = true);
 
     try {
       final authService = ref.read(authServiceProvider);
       await authService.sendPasswordResetEmail(_emailController.text.trim());
+      _startCooldown();
 
       if (mounted) {
         setState(() {
@@ -43,7 +72,7 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(e.toString()),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -52,56 +81,74 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('비밀번호 찾기'),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: _emailSent ? _buildSuccessView() : _buildFormView(),
+      appBar: AppBar(title: const Text('비밀번호 찾기')),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors:
+                isDark
+                    ? <Color>[AppColors.darkBackground, AppColors.darkSurface]
+                    : <Color>[
+                      AppColors.background,
+                      AppColors.surfaceTint,
+                      AppColors.accentSoft.withValues(alpha: 0.6),
+                    ],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                child:
+                    _emailSent
+                        ? _buildSuccessView(context)
+                        : _buildFormView(context),
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildFormView() {
+  Widget _buildFormView(BuildContext context) {
     return Form(
       key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(height: 40),
-          const Icon(
-            Icons.lock_reset,
-            size: 80,
-            color: Colors.blue,
-          ),
+          const Icon(Icons.lock_reset, size: 80, color: AppColors.primary),
           const SizedBox(height: 24),
           const Text(
             '비밀번호를 잊으셨나요?',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             '가입하신 이메일 주소를 입력하시면\n비밀번호 재설정 링크를 보내드립니다.',
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.65),
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 28),
           TextFormField(
             controller: _emailController,
             decoration: const InputDecoration(
               labelText: '이메일',
               prefixIcon: Icon(Icons.email),
-              border: OutlineInputBorder(),
             ),
             keyboardType: TextInputType.emailAddress,
             validator: (value) {
@@ -117,25 +164,27 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
           ),
           const SizedBox(height: 24),
           ElevatedButton(
-            onPressed: _isLoading ? null : _sendResetEmail,
+            onPressed:
+                (_isLoading || _cooldownSeconds > 0) ? null : _sendResetEmail,
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
             ),
-            child: _isLoading
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
+            child:
+                _isLoading
+                    ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                    : Text(
+                      _cooldownSeconds > 0
+                          ? '재전송 대기 ($_cooldownSeconds초)'
+                          : '재설정 링크 보내기',
+                      style: const TextStyle(fontSize: 16),
                     ),
-                  )
-                : const Text(
-                    '재설정 링크 보내기',
-                    style: TextStyle(fontSize: 16),
-                  ),
           ),
           const SizedBox(height: 16),
           TextButton(
@@ -147,55 +196,46 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
     );
   }
 
-  Widget _buildSuccessView() {
+  Widget _buildSuccessView(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 40),
-        const Icon(
-          Icons.mark_email_read,
-          size: 80,
-          color: Colors.green,
-        ),
+        const Icon(Icons.mark_email_read, size: 80, color: AppColors.success),
         const SizedBox(height: 24),
         const Text(
           '이메일을 확인해주세요!',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 16),
         Text(
-          '${_emailController.text} 으로\n비밀번호 재설정 링크를 보냈습니다.',
-          style: const TextStyle(
+          '입력하신 이메일이 가입된 계정이라면\n비밀번호 재설정 링크를 보냈습니다.',
+          style: TextStyle(
             fontSize: 14,
-            color: Colors.grey,
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.7),
           ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 12),
-        const Text(
+        Text(
           '이메일을 받지 못하셨나요?\n스팸 폴더를 확인해주세요.',
           style: TextStyle(
             fontSize: 12,
-            color: Colors.grey,
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.6),
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 40),
+        const SizedBox(height: 28),
         ElevatedButton(
           onPressed: () => context.go('/login'),
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 16),
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
           ),
-          child: const Text(
-            '로그인하기',
-            style: TextStyle(fontSize: 16),
-          ),
+          child: const Text('로그인하기', style: TextStyle(fontSize: 16)),
         ),
         const SizedBox(height: 12),
         OutlinedButton(

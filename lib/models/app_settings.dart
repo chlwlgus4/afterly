@@ -2,22 +2,26 @@ class AppSettings {
   final bool notificationsEnabled;
   final ThemeMode themeMode;
   final String language;
+  final bool comparisonGuideSeen;
 
   const AppSettings({
     this.notificationsEnabled = true,
     this.themeMode = ThemeMode.light,
     this.language = 'ko',
+    this.comparisonGuideSeen = false,
   });
 
   AppSettings copyWith({
     bool? notificationsEnabled,
     ThemeMode? themeMode,
     String? language,
+    bool? comparisonGuideSeen,
   }) {
     return AppSettings(
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
       themeMode: themeMode ?? this.themeMode,
       language: language ?? this.language,
+      comparisonGuideSeen: comparisonGuideSeen ?? this.comparisonGuideSeen,
     );
   }
 
@@ -26,6 +30,7 @@ class AppSettings {
       'notificationsEnabled': notificationsEnabled,
       'themeMode': themeMode.index,
       'language': language,
+      'comparisonGuideSeen': comparisonGuideSeen,
     };
   }
 
@@ -34,6 +39,7 @@ class AppSettings {
       notificationsEnabled: json['notificationsEnabled'] ?? true,
       themeMode: ThemeMode.values[json['themeMode'] ?? 0],
       language: json['language'] ?? 'ko',
+      comparisonGuideSeen: json['comparisonGuideSeen'] ?? false,
     );
   }
 }

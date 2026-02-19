@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../../utils/constants.dart';
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
@@ -29,19 +30,37 @@ class _AboutScreenState extends State<AboutScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('앱 정보'),
-      ),
+      appBar: AppBar(title: const Text('앱 정보')),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
           const SizedBox(height: 20),
           // 앱 아이콘
           const Center(
-            child: Icon(
-              Icons.face_retouching_natural,
-              size: 100,
-              color: Color(0xFF6C63FF),
+            child: SizedBox(
+              width: 110,
+              height: 110,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.all(Radius.circular(28)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary,
+                      blurRadius: 20,
+                      spreadRadius: -8,
+                      offset: Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Image(
+                    image: AssetImage('assets/icon/app_icon.png'),
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 24),
@@ -49,20 +68,19 @@ class _AboutScreenState extends State<AboutScreen> {
           // 앱 이름
           const Text(
             'Afterly',
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
 
           // 부제
-          const Text(
+          Text(
             'Before/After 피부 관리 분석',
             style: TextStyle(
               fontSize: 16,
-              color: Colors.grey,
+              color: Theme.of(context).colorScheme.onSurface.withValues(
+                alpha: 0.65,
+              ),
             ),
             textAlign: TextAlign.center,
           ),
@@ -115,10 +133,10 @@ class _AboutScreenState extends State<AboutScreen> {
                   context: context,
                   applicationName: 'Afterly',
                   applicationVersion: _appVersion,
-                  applicationIcon: const Icon(
-                    Icons.face_retouching_natural,
-                    size: 48,
-                    color: Color(0xFF6C63FF),
+                  applicationIcon: const Image(
+                    image: AssetImage('assets/icon/app_icon.png'),
+                    width: 48,
+                    height: 48,
                   ),
                 );
               },
@@ -141,10 +159,7 @@ class _AboutScreenState extends State<AboutScreen> {
           children: [
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             ...items,
@@ -162,12 +177,13 @@ class _AboutScreenState extends State<AboutScreen> {
         children: [
           Text(
             label,
-            style: const TextStyle(color: Colors.grey),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface.withValues(
+                alpha: 0.65,
+              ),
+            ),
           ),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w500),
-          ),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
         ],
       ),
     );

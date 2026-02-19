@@ -15,6 +15,9 @@ Afterly는 피부 관리샵용 Before/After 촬영·비교·분석 앱입니다.
 - 이미지 저장(비교본/단일본)
 - Firebase Auth/Firestore/Storage 연동
 - 소셜 로그인(Google, Apple)
+- 로그인 보안 강화
+  - SMS 기반 2단계 인증(MFA) 등록/로그인
+  - App Check + Functions 기반 비밀번호 재설정 보호
 
 ## 최근 추가 기능
 

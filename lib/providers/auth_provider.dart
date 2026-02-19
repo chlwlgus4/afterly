@@ -33,3 +33,18 @@ final authTokenReadyProvider = FutureProvider.autoDispose<User?>((ref) async {
     return null;
   }
 });
+
+// 로그인 중 2차 인증이 필요한 경우 임시로 Resolver 보관
+final pendingMfaResolverProvider = StateProvider<MultiFactorResolver?>((ref) {
+  return null;
+});
+
+final mfaEnrolledProvider = FutureProvider<bool>((ref) async {
+  final user = ref.watch(authStateProvider).valueOrNull;
+  if (user == null) {
+    return false;
+  }
+
+  final factors = await user.multiFactor.getEnrolledFactors();
+  return factors.isNotEmpty;
+});

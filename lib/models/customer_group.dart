@@ -25,7 +25,10 @@ class CustomerGroup {
     };
   }
 
-  factory CustomerGroup.fromMap(Map<String, dynamic> map, {String? documentId}) {
+  factory CustomerGroup.fromMap(
+    Map<String, dynamic> map, {
+    String? documentId,
+  }) {
     return CustomerGroup(
       id: documentId,
       userId: map['userId'] as String,
@@ -59,13 +62,13 @@ class CustomerGroup {
 // 기본 그룹 색상
 class GroupColors {
   static const List<String> defaultColors = [
-    '#6C63FF', // 보라
-    '#FF6B6B', // 빨강
-    '#4ECDC4', // 청록
-    '#FFE66D', // 노랑
-    '#95E1D3', // 민트
-    '#F38181', // 분홍
-    '#AA96DA', // 연보라
-    '#FCBAD3', // 연분홍
+    '#E8488A', // 대표 핑크
+    '#FF6FA8', // 라이트 핑크
+    '#D93D7B', // 체리 핑크
+    '#FF8A73', // 코랄
+    '#FF9D5C', // 웜 오렌지
+    '#2EB47D', // 민트
+    '#FF9AC4', // 소프트 핑크
+    '#8E8295', // 뉴트럴 보라그레이
   ];
 }

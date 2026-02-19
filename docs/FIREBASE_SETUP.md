@@ -156,6 +156,71 @@ service firebase.storage {
 
 ---
 
+## 🔐 MFA(2단계 인증) 설정
+
+앱은 로그인 후 MFA 미설정 사용자를 자동으로 `2단계 인증 설정 화면`으로 이동시킵니다.
+
+### 1. Firebase Console에서 Phone 인증 활성화
+
+1. [Firebase Console - Authentication Providers](https://console.firebase.google.com/project/afterly-app/authentication/providers) 접속
+2. **Phone** 로그인 방법을 활성화
+3. 저장
+
+### 2. 테스트 번호 등록(개발용 권장)
+
+1. Firebase Console → Authentication → Sign-in method → Phone
+2. **Phone numbers for testing**에 테스트 번호/코드 추가
+3. 실제 SMS 과금 없이 MFA 등록/로그인 테스트 가능
+
+### 3. 앱에서 확인할 항목
+
+- 로그인 후 `2단계 인증 설정` 화면으로 강제 이동되는지
+- 전화번호 입력 → 코드 수신 → 등록 완료 후 홈 이동되는지
+- 로그아웃 후 재로그인 시 `2단계 인증 코드` 입력 화면이 뜨는지
+
+---
+
+## 🛡️ App Check + Functions 기반 비밀번호 재설정 보호
+
+비밀번호 재설정은 클라이언트 직접 호출 대신 Functions `requestPasswordReset` 경로를 사용합니다.
+
+### 1. App Check 활성화
+
+1. Firebase Console → **App Check**
+2. Android 앱: **Play Integrity** 등록
+3. iOS 앱: **App Attest**(권장) 또는 DeviceCheck 등록
+4. 개발 빌드는 Flutter debug provider를 사용하므로, 디버그 토큰을 App Check 콘솔에 등록
+
+### 2. Functions 배포 준비
+
+프로젝트 루트에서:
+
+```bash
+cd functions
+npm install
+```
+
+Functions 시크릿 등록:
+
+```bash
+firebase functions:secrets:set AFTERLY_WEB_API_KEY --project afterly-app
+```
+
+`AFTERLY_WEB_API_KEY` 값은 현재 Firebase 앱의 API Key를 사용합니다.
+
+### 3. Functions 배포
+
+```bash
+firebase deploy --only functions --project afterly-app
+```
+
+배포 후 앱의 비밀번호 재설정은 다음이 적용됩니다:
+- App Check 토큰 없는 요청 차단
+- 이메일/IP 단위 rate limit
+- 계정 존재 여부 노출 방지
+
+---
+
 ## 🧪 최종 테스트 체크리스트
 
 ### 기본 기능

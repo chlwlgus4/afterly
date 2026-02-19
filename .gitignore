@@ -54,3 +54,5 @@ ios/Runner/GoogleService-Info.plist
 .env.*
 firebase_options.dart
 /devtools_options.yaml
+functions/node_modules/
+functions/.env*

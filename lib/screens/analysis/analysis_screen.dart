@@ -49,44 +49,73 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final backgroundGradient = <Color>[
+      isDark ? AppColors.darkBackground : AppColors.background,
+      isDark
+          ? AppColors.darkSurfaceLight.withValues(alpha: 0.55)
+          : AppColors.surfaceTint.withValues(alpha: 0.55),
+    ];
+    final appBarColor =
+        isDark
+            ? AppColors.darkSurface.withValues(alpha: 0.92)
+            : AppColors.surface.withValues(alpha: 0.95);
+
     if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_session == null || !_session!.hasAnalysis) {
       return Scaffold(
-        appBar: AppBar(title: const Text('분석 결과')),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: AppColors.error),
-              const SizedBox(height: 16),
-              Text(
-                _session == null
-                    ? '촬영 기록을 찾을 수 없습니다.\n기록이 삭제되었을 수 있습니다.'
-                    : '분석 데이터가 없습니다.\n비교 화면에서 분석을 먼저 진행해주세요.',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Theme.of(context).colorScheme.onSurface,
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          title: const Text('분석 결과'),
+          backgroundColor: appBarColor,
+          surfaceTintColor: Colors.transparent,
+        ),
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: backgroundGradient,
+            ),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+                const SizedBox(height: 16),
+                Text(
+                  _session == null
+                      ? '촬영 기록을 찾을 수 없습니다.\n기록이 삭제되었을 수 있습니다.'
+                      : '분석 데이터가 없습니다.\n비교 화면에서 분석을 먼저 진행해주세요.',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => context.go('/'),
-                child: const Text('홈으로'),
-              ),
-            ],
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () => context.go('/'),
+                  child: const Text('홈으로'),
+                ),
+              ],
+            ),
           ),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('분석 결과'),
+        backgroundColor: appBarColor,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/'),
@@ -99,89 +128,106 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 이미지 미리보기
-            _buildImagePreview(),
-            const SizedBox(height: 24),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: backgroundGradient,
+          ),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 이미지 미리보기
+              _buildImagePreview(),
+              const SizedBox(height: 24),
 
-            // 분석 요약
-            _buildSummaryCard(),
-            const SizedBox(height: 20),
+              // 분석 요약
+              _buildSummaryCard(),
+              const SizedBox(height: 20),
 
-            // 점수 카드들
-            Text(
-              '상세 분석',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.onSurface,
+              // 점수 카드들
+              Text(
+                '상세 분석',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            _buildScoreCard(
-              icon: Icons.face,
-              title: '얼굴 라인 변화',
-              score: _session!.jawlineScore!,
-              description: _getJawlineDescription(_session!.jawlineScore!),
-              color: _getScoreColor(_session!.jawlineScore!),
-            ),
-            const SizedBox(height: 12),
-            _buildScoreCard(
-              icon: Icons.balance,
-              title: '좌우 균형',
-              score: _session!.symmetryScore!,
-              description: _getSymmetryDescription(_session!.symmetryScore!),
-              color: _getScoreColor(_session!.symmetryScore!),
-            ),
-            const SizedBox(height: 12),
-            _buildScoreCard(
-              icon: Icons.palette,
-              title: '피부 톤 균일도',
-              score: _session!.skinToneScore!,
-              description: _getSkinToneDescription(_session!.skinToneScore!),
-              color: _getScoreColor(_session!.skinToneScore!),
-            ),
+              const SizedBox(height: 12),
+              _buildScoreCard(
+                icon: Icons.face,
+                title: '얼굴 라인 변화',
+                score: _session!.jawlineScore!,
+                description: _getJawlineDescription(_session!.jawlineScore!),
+                color: _getScoreColor(_session!.jawlineScore!),
+              ),
+              const SizedBox(height: 12),
+              _buildScoreCard(
+                icon: Icons.balance,
+                title: '좌우 균형',
+                score: _session!.symmetryScore!,
+                description: _getSymmetryDescription(_session!.symmetryScore!),
+                color: _getScoreColor(_session!.symmetryScore!),
+              ),
+              const SizedBox(height: 12),
+              _buildScoreCard(
+                icon: Icons.palette,
+                title: '피부 톤 균일도',
+                score: _session!.skinToneScore!,
+                description: _getSkinToneDescription(_session!.skinToneScore!),
+                color: _getScoreColor(_session!.skinToneScore!),
+              ),
 
-            const SizedBox(height: 32),
+              const SizedBox(height: 32),
 
-            // 하단 버튼
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed:
-                        () => context.go('/comparison/${widget.sessionId}'),
-                    icon: const Icon(Icons.compare_arrows),
-                    label: const Text('비교 다시보기'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      side: const BorderSide(color: AppColors.surfaceLight),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+              // 하단 버튼
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed:
+                          () => context.go('/comparison/${widget.sessionId}'),
+                      icon: const Icon(Icons.compare_arrows),
+                      label: const Text('비교 다시보기'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: theme.colorScheme.primary,
+                        side: BorderSide(
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.22,
+                          ),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => context.go('/'),
-                    icon: const Icon(Icons.home),
-                    label: const Text('홈으로'),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => context.go('/'),
+                      icon: const Icon(Icons.home),
+                      label: const Text('홈으로'),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
-          ],
+                ],
+              ),
+              SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildImagePreview() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final imageFallbackColor =
+        isDark ? AppColors.darkSurfaceLight : AppColors.surfaceTint;
+
     return SizedBox(
       height: 200,
       child: Row(
@@ -205,8 +251,13 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                         },
                         errorBuilder: (context, error, stackTrace) {
                           return Container(
-                            color: Colors.grey,
-                            child: const Icon(Icons.error),
+                            color: imageFallbackColor,
+                            child: Icon(
+                              Icons.error,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withValues(alpha: 0.55),
+                            ),
                           );
                         },
                       ),
@@ -245,8 +296,13 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                         },
                         errorBuilder: (context, error, stackTrace) {
                           return Container(
-                            color: Colors.grey,
-                            child: const Icon(Icons.error),
+                            color: imageFallbackColor,
+                            child: Icon(
+                              Icons.error,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withValues(alpha: 0.55),
+                            ),
                           );
                         },
                       ),
@@ -271,29 +327,36 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
   }
 
   Widget _buildSummaryCard() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            AppColors.primary.withValues(alpha: 0.2),
-            AppColors.accent.withValues(alpha: 0.1),
+            theme.colorScheme.primary.withValues(alpha: isDark ? 0.28 : 0.2),
+            isDark
+                ? AppColors.darkSurfaceLight.withValues(alpha: 0.5)
+                : AppColors.accent.withValues(alpha: 0.1),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.4 : 0.3),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.auto_awesome,
-                color: AppColors.primary,
+                color: theme.colorScheme.primary,
                 size: 20,
               ),
               const SizedBox(width: 8),
@@ -328,6 +391,8 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     required String description,
     required Color color,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -346,7 +411,10 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                     child: CircularProgressIndicator(
                       value: score / 100,
                       strokeWidth: 5,
-                      backgroundColor: AppColors.surfaceLight,
+                      backgroundColor:
+                          isDark
+                              ? AppColors.darkSurfaceLight.withValues(alpha: 0.9)
+                              : AppColors.surfaceLight,
                       valueColor: AlwaysStoppedAnimation<Color>(color),
                     ),
                   ),

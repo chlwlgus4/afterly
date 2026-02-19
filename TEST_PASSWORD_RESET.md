@@ -2,10 +2,11 @@
 
 ## ✅ 구현 확인
 
-비밀번호 찾기 기능은 **Firebase Auth**를 사용하여 구현되어 있습니다.
+비밀번호 찾기 기능은 **Firebase Functions + App Check + Firebase Auth** 조합으로 구현되어 있습니다.
 
 - ✅ `AuthService.sendPasswordResetEmail()` 구현됨
-- ✅ Firebase Auth의 `sendPasswordResetEmail()` 호출
+- ✅ Functions `requestPasswordReset` 호출 (App Check 강제)
+- ✅ 서버 측 레이트리밋(이메일/IP)
 - ✅ 에러 핸들링 포함
 - ✅ UI 플로우 완성
 
@@ -29,6 +30,7 @@ flutter run
 2. 가입한 이메일 주소 입력
 3. **"재설정 링크 보내기"** 클릭
 4. 성공 메시지 확인: "이메일을 확인해주세요!"
+5. 재전송 버튼이 60초 동안 비활성화되는지 확인
 
 ### 3단계: 이메일 수신 확인
 

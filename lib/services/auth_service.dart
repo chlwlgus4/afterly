@@ -1,10 +1,22 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'dart:io';
 
+class MfaSignInRequiredException implements Exception {
+  final MultiFactorResolver resolver;
+  MfaSignInRequiredException(this.resolver);
+
+  @override
+  String toString() => '2단계 인증 코드 입력이 필요합니다.';
+}
+
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
+    region: 'asia-northeast3',
+  );
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   // 인증 상태 변화를 실시간으로 구독하는 스트림
@@ -38,6 +50,8 @@ class AuthService {
         email: email,
         password: password,
       );
+    } on FirebaseAuthMultiFactorException catch (e) {
+      throw MfaSignInRequiredException(e.resolver);
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
     }
@@ -97,7 +111,115 @@ class AuthService {
   // 비밀번호 재설정 이메일 발송
   Future<void> sendPasswordResetEmail(String email) async {
     try {
-      await _auth.sendPasswordResetEmail(email: email);
+      final callable = _functions.httpsCallable(
+        'requestPasswordReset',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
+      );
+      await callable.call(<String, String>{'email': email.trim()});
+    } on FirebaseFunctionsException catch (e) {
+      throw _handleFunctionsException(e);
+    }
+  }
+
+  Future<void> refreshCurrentUser() async {
+    await _auth.currentUser?.reload();
+  }
+
+  Future<void> startMfaEnrollment({
+    required String phoneNumber,
+    required void Function(String verificationId, int? resendToken) onCodeSent,
+    required void Function(String message) onVerificationFailed,
+    required Future<void> Function() onAutoVerified,
+    int? forceResendingToken,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('사용자가 로그인하지 않았습니다');
+
+    final mfaSession = await user.multiFactor.getSession();
+
+    await _auth.verifyPhoneNumber(
+      phoneNumber: phoneNumber,
+      multiFactorSession: mfaSession,
+      forceResendingToken: forceResendingToken,
+      verificationCompleted: (credential) async {
+        try {
+          final assertion = PhoneMultiFactorGenerator.getAssertion(credential);
+          await user.multiFactor.enroll(
+            assertion,
+            displayName: 'Primary phone',
+          );
+          await refreshCurrentUser();
+          await onAutoVerified();
+        } on FirebaseAuthException catch (e) {
+          onVerificationFailed(_handleAuthException(e));
+        }
+      },
+      verificationFailed: (e) => onVerificationFailed(_handleAuthException(e)),
+      codeSent: onCodeSent,
+      codeAutoRetrievalTimeout: (_) {},
+    );
+  }
+
+  Future<void> completeMfaEnrollment({
+    required String verificationId,
+    required String smsCode,
+    String displayName = 'Primary phone',
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('사용자가 로그인하지 않았습니다');
+
+      final credential = PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
+      );
+      final assertion = PhoneMultiFactorGenerator.getAssertion(credential);
+      await user.multiFactor.enroll(assertion, displayName: displayName);
+      await refreshCurrentUser();
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    }
+  }
+
+  Future<void> sendMfaSignInCode({
+    required MultiFactorResolver resolver,
+    required PhoneMultiFactorInfo hint,
+    required void Function(String verificationId, int? resendToken) onCodeSent,
+    required void Function(String message) onVerificationFailed,
+    required Future<void> Function() onAutoVerified,
+    int? forceResendingToken,
+  }) async {
+    await _auth.verifyPhoneNumber(
+      multiFactorSession: resolver.session,
+      multiFactorInfo: hint,
+      forceResendingToken: forceResendingToken,
+      verificationCompleted: (credential) async {
+        try {
+          final assertion = PhoneMultiFactorGenerator.getAssertion(credential);
+          await resolver.resolveSignIn(assertion);
+          await onAutoVerified();
+        } on FirebaseAuthException catch (e) {
+          onVerificationFailed(_handleAuthException(e));
+        }
+      },
+      verificationFailed: (e) => onVerificationFailed(_handleAuthException(e)),
+      codeSent: onCodeSent,
+      codeAutoRetrievalTimeout: (_) {},
+    );
+  }
+
+  Future<UserCredential> resolveMfaSignIn({
+    required MultiFactorResolver resolver,
+    required String verificationId,
+    required String smsCode,
+  }) async {
+    try {
+      final credential = PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
+      );
+      final assertion = PhoneMultiFactorGenerator.getAssertion(credential);
+      return await resolver.resolveSignIn(assertion);
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
     }
@@ -105,10 +227,7 @@ class AuthService {
 
   // 로그아웃 (Firebase + Google 동시 로그아웃)
   Future<void> signOut() async {
-    await Future.wait([
-      _auth.signOut(),
-      _googleSignIn.signOut(),
-    ]);
+    await Future.wait([_auth.signOut(), _googleSignIn.signOut()]);
   }
 
   // 계정 삭제 (Firebase 보안 정책상 최근 로그인이 필요할 수 있음)
@@ -183,6 +302,23 @@ class AuthService {
         return '보안을 위해 다시 로그인이 필요합니다';
       default:
         return '로그인 오류: ${e.code}\n${e.message ?? "알 수 없는 오류"}';
+    }
+  }
+
+  String _handleFunctionsException(FirebaseFunctionsException e) {
+    switch (e.code) {
+      case 'invalid-argument':
+        return '올바른 이메일 주소를 입력해주세요.';
+      case 'unauthenticated':
+        return '앱 검증(App Check)에 실패했습니다. 앱을 재실행한 뒤 다시 시도해주세요.';
+      case 'resource-exhausted':
+        return '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.';
+      case 'failed-precondition':
+        return '보안 설정이 아직 완료되지 않았습니다. 관리자에게 문의해주세요.';
+      case 'unavailable':
+        return '서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.';
+      default:
+        return '비밀번호 재설정 요청 중 오류가 발생했습니다.';
     }
   }
 }

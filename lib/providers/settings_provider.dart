@@ -47,6 +47,12 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     state = state.copyWith(language: language);
     await _saveSettings();
   }
+
+  Future<void> markComparisonGuideSeen() async {
+    if (state.comparisonGuideSeen) return;
+    state = state.copyWith(comparisonGuideSeen: true);
+    await _saveSettings();
+  }
 }
 
 final settingsProvider = StateNotifierProvider<SettingsNotifier, AppSettings>((ref) {

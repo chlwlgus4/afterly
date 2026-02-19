@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/shooting_session.dart';
 import '../../providers/firestore_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../services/image_analysis_service.dart';
 import '../../services/image_export_service.dart';
 import '../../utils/constants.dart';
@@ -33,6 +36,26 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
   int _analysisSeconds = 0;
   Timer? _analysisTimer;
   String? _errorMessage;
+  bool _firstGuideChecked = false;
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+  Color get _panelColor =>
+      _isDark
+          ? AppColors.darkSurface.withValues(alpha: 0.94)
+          : AppColors.surface.withValues(alpha: 0.95);
+  Color get _overlayPanelColor =>
+      _isDark
+          ? AppColors.darkSurface.withValues(alpha: 0.84)
+          : AppColors.surface.withValues(alpha: 0.88);
+  Color get _panelBorderColor =>
+      _isDark
+          ? AppColors.darkSurfaceLight.withValues(alpha: 0.7)
+          : AppColors.surfaceLight.withValues(alpha: 0.9);
+  Color get _panelTextColor =>
+      _isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
+  Color get _mutedPanelTextColor =>
+      _isDark
+          ? Colors.white.withValues(alpha: 0.6)
+          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6);
 
   // 슬라이더 모드 - Before 이미지 상하 위치 조정
   double _beforeVerticalOffset = 0.0;
@@ -96,6 +119,114 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
       _session = session;
       _isLoading = false;
     });
+
+    _showGuideOnFirstEntry();
+  }
+
+  Future<bool> _isComparisonGuideSeen() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final settingsJson = prefs.getString('app_settings');
+      if (settingsJson == null) {
+        return ref.read(settingsProvider).comparisonGuideSeen;
+      }
+
+      final json = jsonDecode(settingsJson);
+      if (json is Map<String, dynamic>) {
+        final seen = json['comparisonGuideSeen'];
+        if (seen is bool) return seen;
+      }
+    } catch (_) {}
+
+    return ref.read(settingsProvider).comparisonGuideSeen;
+  }
+
+  void _showGuideOnFirstEntry() {
+    if (_firstGuideChecked || !mounted) return;
+    _firstGuideChecked = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final seen = await _isComparisonGuideSeen();
+      if (!mounted || seen) return;
+
+      await _showComparisonGuideDialog();
+
+      if (mounted) {
+        await ref.read(settingsProvider.notifier).markComparisonGuideSeen();
+      }
+    });
+  }
+
+  Future<void> _showComparisonGuideDialog() async {
+    if (!mounted) return;
+
+    final theme = Theme.of(context);
+
+    await showDialog<void>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.tips_and_updates, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                const Text('분석 화면 가이드'),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '비교 모드 설명',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildGuideLine('토글 모드', '화면을 탭하면 Before/After가 번갈아 표시됩니다.'),
+                  _buildGuideLine('슬라이더 모드', '좌우 드래그로 경계를 이동해 부위별 차이를 확인합니다.'),
+                  _buildGuideLine('오버레이 모드', '투명도와 차이 강조를 이용해 변화량을 빠르게 확인합니다.'),
+                  const SizedBox(height: 12),
+                  Text(
+                    '해석 팁',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildGuideLine('가이드라인', '얼굴 정렬이 어긋나 보이면 가이드라인 버튼으로 위치를 먼저 점검하세요.'),
+                  _buildGuideLine('슬라이더 세로 조정', '슬라이더 모드에서 상하 드래그로 Before 위치를 미세 조정할 수 있습니다.'),
+                  _buildGuideLine('분석하기', '비교 확인 후 하단 분석하기를 누르면 상세 점수 화면으로 이동합니다.'),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('확인'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Widget _buildGuideLine(String title, String description) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        '• $title: $description',
+        style: TextStyle(
+          fontSize: 13,
+          height: 1.45,
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+        ),
+      ),
+    );
   }
 
   Future<void> _runAnalysis() async {
@@ -151,7 +282,8 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
     // 저장 옵션 선택
     final choice = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: _panelColor,
+      showDragHandle: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -162,40 +294,40 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   '이미지 저장',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: _panelTextColor,
                   ),
                 ),
                 const SizedBox(height: 16),
                 ListTile(
                   leading: const Icon(Icons.compare, color: AppColors.primary),
-                  title: const Text(
+                  title: Text(
                     'Before + After 비교 이미지',
-                    style: TextStyle(color: Colors.white),
+                    style: TextStyle(color: _panelTextColor),
                   ),
-                  subtitle: const Text(
+                  subtitle: Text(
                     '두 사진을 나란히 합쳐서 저장',
-                    style: TextStyle(color: Color(0xFF9E9EB8)),
+                    style: TextStyle(color: _mutedPanelTextColor),
                   ),
                   onTap: () => Navigator.pop(context, 'both'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.photo, color: AppColors.primary),
-                  title: const Text(
+                  title: Text(
                     'Before 이미지만',
-                    style: TextStyle(color: Colors.white),
+                    style: TextStyle(color: _panelTextColor),
                   ),
                   onTap: () => Navigator.pop(context, 'before'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.photo, color: AppColors.accent),
-                  title: const Text(
+                  title: Text(
                     'After 이미지만',
-                    style: TextStyle(color: Colors.white),
+                    style: TextStyle(color: _panelTextColor),
                   ),
                   onTap: () => Navigator.pop(context, 'after'),
                 ),
@@ -244,6 +376,13 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final activeActionColor =
+        _isDark ? AppColors.primaryLight : theme.colorScheme.primary;
+    final inactiveActionColor = theme.colorScheme.onSurface.withValues(
+      alpha: _isDark ? 0.55 : 0.5,
+    );
+
     if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -276,16 +415,23 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor:
+          _isDark ? AppColors.darkBackground : theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('전/후 비교', style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF1A1A2E),
-        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text('전/후 비교', style: TextStyle(color: _panelTextColor)),
+        backgroundColor: _panelColor,
+        surfaceTintColor: Colors.transparent,
+        iconTheme: IconThemeData(color: _panelTextColor),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/'),
         ),
         actions: [
+          IconButton(
+            icon: Icon(Icons.help_outline, color: activeActionColor),
+            onPressed: _showComparisonGuideDialog,
+            tooltip: '가이드',
+          ),
           // 모드 전환 버튼
           IconButton(
             icon: Icon(
@@ -294,7 +440,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                   : _isSliderMode
                   ? Icons.compare
                   : Icons.toggle_on,
-              color: AppColors.primary,
+              color: activeActionColor,
             ),
             onPressed: () {
               setState(() {
@@ -319,7 +465,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
           IconButton(
             icon: Icon(
               Icons.face_retouching_natural,
-              color: _showGuide ? AppColors.primary : AppColors.textSecondary,
+              color: _showGuide ? activeActionColor : inactiveActionColor,
             ),
             onPressed: () => setState(() => _showGuide = !_showGuide),
             tooltip: '가이드라인',
@@ -328,7 +474,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
           IconButton(
             icon: Icon(
               Icons.save_alt,
-              color: _isSaving ? AppColors.textSecondary : AppColors.primary,
+              color: _isSaving ? inactiveActionColor : activeActionColor,
             ),
             onPressed: _isSaving || _isAnalyzing ? null : _saveImage,
             tooltip: '이미지 저장',
@@ -405,7 +551,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                 left: width * _sliderPosition - 1,
                 top: 0,
                 bottom: 0,
-                child: Container(width: 2, color: Colors.white),
+                child: Container(width: 2, color: AppColors.accentSoft),
               ),
               // 슬라이더 핸들
               Positioned(
@@ -415,12 +561,15 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.surface,
                     shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.accentSoft.withValues(alpha: 0.9),
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        blurRadius: 8,
+                        color: AppColors.primaryDark.withValues(alpha: 0.32),
+                        blurRadius: 10,
                       ),
                     ],
                   ),
@@ -430,12 +579,12 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                       Icon(
                         Icons.chevron_left,
                         size: 16,
-                        color: AppColors.primary,
+                        color: AppColors.primaryDark,
                       ),
                       Icon(
                         Icons.chevron_right,
                         size: 16,
-                        color: AppColors.primary,
+                        color: AppColors.primaryDark,
                       ),
                     ],
                   ),
@@ -465,7 +614,10 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.7),
+                        color: _overlayPanelColor,
+                        border: Border.all(
+                          color: _panelBorderColor,
+                        ),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -479,8 +631,8 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                           const SizedBox(width: 4),
                           Text(
                             '위치 조정: ${_beforeVerticalOffset > 0 ? '+' : ''}${_beforeVerticalOffset.toInt()}px',
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: _panelTextColor,
                               fontSize: 12,
                             ),
                           ),
@@ -547,7 +699,8 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
             child: Center(
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.7),
+                  color: _overlayPanelColor,
+                  border: Border.all(color: _panelBorderColor),
                   borderRadius: BorderRadius.circular(25),
                 ),
                 child: Row(
@@ -569,7 +722,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
               child: Text(
                 '화면을 탭하여 전환',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.5),
+                  color: _mutedPanelTextColor,
                   fontSize: 12,
                 ),
               ),
@@ -654,7 +807,8 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.8),
+              color: _overlayPanelColor,
+              border: Border.all(color: _panelBorderColor),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
@@ -682,7 +836,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                               color:
                                   !_isDifferenceMode
                                       ? Colors.white
-                                      : AppColors.textSecondary,
+                                      : _mutedPanelTextColor,
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
@@ -710,7 +864,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                               color:
                                   _isDifferenceMode
                                       ? Colors.white
-                                      : AppColors.textSecondary,
+                                      : _mutedPanelTextColor,
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
@@ -735,8 +889,8 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                     ),
                     Text(
                       '${(_overlayOpacity * 100).toInt()}%',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
+                      style: TextStyle(
+                        color: _mutedPanelTextColor,
                         fontSize: 12,
                       ),
                     ),
@@ -754,7 +908,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                   data: SliderThemeData(
                     activeTrackColor: AppColors.primary,
                     inactiveTrackColor: AppColors.accent.withValues(alpha: 0.3),
-                    thumbColor: Colors.white,
+                    thumbColor: _panelTextColor,
                     overlayColor: AppColors.primary.withValues(alpha: 0.2),
                     trackHeight: 4,
                   ),
@@ -787,7 +941,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : AppColors.textSecondary,
+            color: isSelected ? Colors.white : _mutedPanelTextColor,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -800,6 +954,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.8),
+        border: Border.all(color: _panelTextColor.withValues(alpha: 0.28)),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Text(
@@ -821,16 +976,17 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
         top: 16,
         bottom: MediaQuery.of(context).padding.bottom + 16,
       ),
-      decoration: const BoxDecoration(
-        color: Color(0xFF1A1A2E),
+      decoration: BoxDecoration(
+        color: _panelColor,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (_isAnalyzing) ...[
-            const LinearProgressIndicator(
-              backgroundColor: Color(0xFF25253D),
+            LinearProgressIndicator(
+              backgroundColor:
+                  _isDark ? AppColors.darkSurfaceLight : AppColors.surfaceLight,
               valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
             ),
             const SizedBox(height: 10),
@@ -838,7 +994,7 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
               '분석 중... $_analysisSeconds초 경과 (약 5~10초 소요)',
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.white.withValues(alpha: 0.7),
+                color: _mutedPanelTextColor,
               ),
             ),
             const SizedBox(height: 12),
@@ -851,8 +1007,8 @@ class _ComparisonScreenState extends ConsumerState<ComparisonScreen> {
                   icon: const Icon(Icons.home),
                   label: const Text('홈으로'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF9E9EB8),
-                    side: const BorderSide(color: Color(0xFF25253D)),
+                    foregroundColor: _mutedPanelTextColor,
+                    side: BorderSide(color: _panelBorderColor),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),
