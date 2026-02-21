@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
@@ -113,25 +114,15 @@ class AuthService {
     final normalizedEmail = email.trim();
 
     try {
+      // 호출 직전 토큰을 강제 갱신해 App Check INVALID 발생을 줄인다.
+      await FirebaseAppCheck.instance.getToken(true);
+
       final callable = _functions.httpsCallable(
         'requestPasswordReset',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
       );
       await callable.call(<String, String>{'email': normalizedEmail});
     } on FirebaseFunctionsException catch (e) {
-      if (_shouldFallbackToClientPasswordReset(e.code)) {
-        try {
-          // Functions 보호 경로가 준비되지 않은 환경에서는 Firebase 기본 경로로 폴백.
-          await _auth.sendPasswordResetEmail(email: normalizedEmail);
-          return;
-        } on FirebaseAuthException catch (authError) {
-          if (authError.code == 'user-not-found') {
-            // 계정 존재 여부 노출 방지
-            return;
-          }
-          throw _handleAuthException(authError);
-        }
-      }
       throw _handleFunctionsException(e);
     }
   }
@@ -334,19 +325,6 @@ class AuthService {
         return '서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.';
       default:
         return '비밀번호 재설정 요청 중 오류가 발생했습니다.';
-    }
-  }
-
-  bool _shouldFallbackToClientPasswordReset(String code) {
-    switch (code) {
-      case 'failed-precondition':
-      case 'unauthenticated':
-      case 'unavailable':
-      case 'internal':
-      case 'deadline-exceeded':
-        return true;
-      default:
-        return false;
     }
   }
 }
