@@ -4,6 +4,25 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
 
+class _DialCodeOption {
+  final String code;
+  final String label;
+  const _DialCodeOption(this.code, this.label);
+}
+
+const _dialCodeOptions = <_DialCodeOption>[
+  _DialCodeOption('+82', 'KR +82'),
+  _DialCodeOption('+1', 'US +1'),
+  _DialCodeOption('+81', 'JP +81'),
+  _DialCodeOption('+86', 'CN +86'),
+  _DialCodeOption('+44', 'UK +44'),
+  _DialCodeOption('+61', 'AU +61'),
+  _DialCodeOption('+84', 'VN +84'),
+  _DialCodeOption('+66', 'TH +66'),
+  _DialCodeOption('+63', 'PH +63'),
+  _DialCodeOption('+65', 'SG +65'),
+];
+
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
 
@@ -14,9 +33,10 @@ class SignUpScreen extends ConsumerStatefulWidget {
 class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
+  final _phoneLocalController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  String _selectedDialCode = '+82';
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -24,21 +44,19 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   @override
   void dispose() {
     _emailController.dispose();
-    _phoneController.dispose();
+    _phoneLocalController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  String _normalizePhone(String input) {
-    final trimmed = input.trim();
-    final hasPlus = trimmed.startsWith('+');
-    final digits = trimmed.replaceAll(RegExp(r'\D'), '');
-    if (digits.isEmpty) return trimmed;
-    if (hasPlus) return '+$digits';
-    if (digits.startsWith('00')) return '+${digits.substring(2)}';
-    if (digits.startsWith('0')) return '+82${digits.substring(1)}';
-    return '+$digits';
+  String _buildE164Phone() {
+    final digits = _phoneLocalController.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return '';
+    if (_selectedDialCode == '+82' && digits.startsWith('0')) {
+      return '$_selectedDialCode${digits.substring(1)}';
+    }
+    return '$_selectedDialCode$digits';
   }
 
   Future<void> _signUp() async {
@@ -56,12 +74,12 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('회원가입이 완료되었습니다. 전화번호 인증을 진행해주세요.'),
+            content: Text('회원가입 완료! 인증 메일을 보냈습니다. 메일 인증 후 전화번호 인증을 진행해주세요.'),
             backgroundColor: AppColors.success,
           ),
         );
         context.go(
-          '/mfa-setup?phone=${Uri.encodeComponent(_normalizePhone(_phoneController.text))}',
+          '/mfa-setup?phone=${Uri.encodeComponent(_buildE164Phone())}',
         );
       }
     } catch (e) {
@@ -146,26 +164,78 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             enabled: !_isLoading,
                           ),
                           const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _phoneController,
-                            decoration: const InputDecoration(
-                              labelText: '휴대폰 번호 (+국가코드)',
-                              hintText: '+821012345678 또는 01012345678',
-                              prefixIcon: Icon(Icons.phone_android),
-                            ),
-                            keyboardType: TextInputType.phone,
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return '휴대폰 번호를 입력해주세요';
-                              }
-                              final normalized = _normalizePhone(value);
-                              final regExp = RegExp(r'^\+[1-9]\d{7,14}$');
-                              if (!regExp.hasMatch(normalized)) {
-                                return '유효한 휴대폰 번호 형식이 아닙니다';
-                              }
-                              return null;
-                            },
-                            enabled: !_isLoading,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(
+                                width: 104,
+                                child: DropdownButtonFormField<String>(
+                                  value: _selectedDialCode,
+                                  isExpanded: true,
+                                  decoration: const InputDecoration(
+                                    labelText: '코드',
+                                  ),
+                                  items:
+                                      _dialCodeOptions
+                                          .map(
+                                            (item) => DropdownMenuItem<String>(
+                                              value: item.code,
+                                              child: Text(
+                                                item.label,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                  selectedItemBuilder:
+                                      (context) =>
+                                          _dialCodeOptions
+                                              .map(
+                                                (item) => Align(
+                                                  alignment: Alignment.centerLeft,
+                                                  child: Text(item.code),
+                                                ),
+                                              )
+                                              .toList(),
+                                  onChanged:
+                                      _isLoading
+                                          ? null
+                                          : (value) {
+                                            if (value == null) return;
+                                            setState(
+                                              () => _selectedDialCode = value,
+                                            );
+                                          },
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _phoneLocalController,
+                                  decoration: const InputDecoration(
+                                    labelText: '휴대폰 번호',
+                                    hintText: '1012345678',
+                                    prefixIcon: Icon(Icons.phone_android),
+                                  ),
+                                  keyboardType: TextInputType.phone,
+                                  validator: (value) {
+                                    final digits = (value ?? '').replaceAll(
+                                      RegExp(r'\D'),
+                                      '',
+                                    );
+                                    if (digits.isEmpty) {
+                                      return '휴대폰 번호를 입력해주세요';
+                                    }
+                                    if (digits.length < 7 ||
+                                        digits.length > 12) {
+                                      return '휴대폰 번호 형식을 확인해주세요';
+                                    }
+                                    return null;
+                                  },
+                                  enabled: !_isLoading,
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 16),
                           TextFormField(

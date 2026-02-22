@@ -4,6 +4,25 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
 
+class _DialCodeOption {
+  final String code;
+  final String label;
+  const _DialCodeOption(this.code, this.label);
+}
+
+const _dialCodeOptions = <_DialCodeOption>[
+  _DialCodeOption('+82', 'KR +82'),
+  _DialCodeOption('+1', 'US +1'),
+  _DialCodeOption('+81', 'JP +81'),
+  _DialCodeOption('+86', 'CN +86'),
+  _DialCodeOption('+44', 'UK +44'),
+  _DialCodeOption('+61', 'AU +61'),
+  _DialCodeOption('+84', 'VN +84'),
+  _DialCodeOption('+66', 'TH +66'),
+  _DialCodeOption('+63', 'PH +63'),
+  _DialCodeOption('+65', 'SG +65'),
+];
+
 class MfaSetupScreen extends ConsumerStatefulWidget {
   const MfaSetupScreen({super.key, this.initialPhone});
 
@@ -15,8 +34,9 @@ class MfaSetupScreen extends ConsumerStatefulWidget {
 
 class _MfaSetupScreenState extends ConsumerState<MfaSetupScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _phoneController = TextEditingController();
+  final _phoneLocalController = TextEditingController();
   final _codeController = TextEditingController();
+  String _selectedDialCode = '+82';
 
   bool _isSendingCode = false;
   bool _isVerifyingCode = false;
@@ -28,15 +48,30 @@ class _MfaSetupScreenState extends ConsumerState<MfaSetupScreen> {
   void initState() {
     super.initState();
     if (widget.initialPhone != null && widget.initialPhone!.trim().isNotEmpty) {
-      _phoneController.text = _normalizePhoneNumber(widget.initialPhone!);
+      final parsed = _splitPhone(widget.initialPhone!);
+      _selectedDialCode = parsed.$1;
+      _phoneLocalController.text = parsed.$2;
     }
+    _phoneLocalController.selection = TextSelection.fromPosition(
+      TextPosition(offset: _phoneLocalController.text.length),
+    );
   }
 
   @override
   void dispose() {
-    _phoneController.dispose();
+    _phoneLocalController.dispose();
     _codeController.dispose();
     super.dispose();
+  }
+
+  (String, String) _splitPhone(String value) {
+    final normalized = _normalizePhoneNumber(value);
+    for (final option in _dialCodeOptions) {
+      if (normalized.startsWith(option.code)) {
+        return (option.code, normalized.substring(option.code.length));
+      }
+    }
+    return ('+82', normalized.replaceFirst(RegExp(r'^\+'), ''));
   }
 
   String _normalizePhoneNumber(String value) {
@@ -48,8 +83,10 @@ class _MfaSetupScreenState extends ConsumerState<MfaSetupScreen> {
     if (digits.isEmpty) return trimmed;
     if (hasPlus) return '+$digits';
     if (digits.startsWith('00')) return '+${digits.substring(2)}';
-    if (digits.startsWith('0')) return '+82${digits.substring(1)}';
-    return '+$digits';
+    if (_selectedDialCode == '+82' && digits.startsWith('0')) {
+      return '$_selectedDialCode${digits.substring(1)}';
+    }
+    return '$_selectedDialCode$digits';
   }
 
   Future<void> _sendCode() async {
@@ -59,8 +96,31 @@ class _MfaSetupScreenState extends ConsumerState<MfaSetupScreen> {
 
     final authService = ref.read(authServiceProvider);
 
+    try {
+      await authService.refreshCurrentUser();
+      final isEmailVerified = authService.currentUser?.emailVerified ?? false;
+      if (!isEmailVerified) {
+        if (!mounted) return;
+        setState(() => _isSendingCode = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('이메일 인증이 필요합니다. 메일 인증 후 다시 시도해주세요.'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+        return;
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSendingCode = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
+      );
+      return;
+    }
+
     await authService.startMfaEnrollment(
-      phoneNumber: _normalizePhoneNumber(_phoneController.text),
+      phoneNumber: _normalizePhoneNumber(_phoneLocalController.text),
       forceResendingToken: _resendToken,
       onCodeSent: (verificationId, resendToken) {
         if (!mounted) return;
@@ -97,6 +157,25 @@ class _MfaSetupScreenState extends ConsumerState<MfaSetupScreen> {
         context.go('/');
       },
     );
+  }
+
+  Future<void> _resendVerificationEmail() async {
+    final authService = ref.read(authServiceProvider);
+    try {
+      await authService.sendCurrentUserEmailVerification();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('인증 이메일을 다시 보냈습니다. 메일함을 확인해주세요.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
+      );
+    }
   }
 
   Future<void> _verifyCode() async {
@@ -208,7 +287,7 @@ class _MfaSetupScreenState extends ConsumerState<MfaSetupScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            '국가번호 포함 전화번호 예시: +821012345678',
+            '국가코드를 선택하고 전화번호를 입력하세요.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,
@@ -218,22 +297,78 @@ class _MfaSetupScreenState extends ConsumerState<MfaSetupScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          TextFormField(
-            controller: _phoneController,
-            keyboardType: TextInputType.phone,
-            enabled: !_isSendingCode && !_isVerifyingCode,
-            decoration: const InputDecoration(
-              labelText: '전화번호 (+국가코드)',
-              prefixIcon: Icon(Icons.phone),
-            ),
-            validator: (value) {
-              final normalized = _normalizePhoneNumber(value ?? '');
-              final regExp = RegExp(r'^\+\d{8,15}$');
-              if (!regExp.hasMatch(normalized)) {
-                return '국가코드를 포함한 전화번호를 입력해주세요.';
-              }
-              return null;
-            },
+          OutlinedButton.icon(
+            onPressed: (_isSendingCode || _isVerifyingCode)
+                ? null
+                : _resendVerificationEmail,
+            icon: const Icon(Icons.mark_email_read_outlined),
+            label: const Text('인증 메일 다시 보내기'),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 104,
+                child: DropdownButtonFormField<String>(
+                  value: _selectedDialCode,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: '코드'),
+                  items:
+                      _dialCodeOptions
+                          .map(
+                            (item) => DropdownMenuItem<String>(
+                              value: item.code,
+                              child: Text(
+                                item.label,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                  selectedItemBuilder:
+                      (context) =>
+                          _dialCodeOptions
+                              .map(
+                                (item) => Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(item.code),
+                                ),
+                              )
+                              .toList(),
+                  onChanged:
+                      (_isSendingCode || _isVerifyingCode)
+                          ? null
+                          : (value) {
+                            if (value == null) return;
+                            setState(() => _selectedDialCode = value);
+                          },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextFormField(
+                  controller: _phoneLocalController,
+                  keyboardType: TextInputType.phone,
+                  enabled: !_isSendingCode && !_isVerifyingCode,
+                  decoration: const InputDecoration(
+                    labelText: '전화번호',
+                    hintText: '1012345678',
+                    prefixIcon: Icon(Icons.phone),
+                  ),
+                  validator: (value) {
+                    final digits = (value ?? '').replaceAll(RegExp(r'\D'), '');
+                    if (digits.isEmpty) {
+                      return '전화번호를 입력해주세요.';
+                    }
+                    if (digits.length < 7 || digits.length > 12) {
+                      return '전화번호 형식을 확인해주세요.';
+                    }
+                    return null;
+                  },
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           ElevatedButton(

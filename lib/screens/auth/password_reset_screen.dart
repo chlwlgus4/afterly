@@ -7,6 +7,25 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
 
+class _DialCodeOption {
+  final String code;
+  final String label;
+  const _DialCodeOption(this.code, this.label);
+}
+
+const _dialCodeOptions = <_DialCodeOption>[
+  _DialCodeOption('+82', 'KR +82'),
+  _DialCodeOption('+1', 'US +1'),
+  _DialCodeOption('+81', 'JP +81'),
+  _DialCodeOption('+86', 'CN +86'),
+  _DialCodeOption('+44', 'UK +44'),
+  _DialCodeOption('+61', 'AU +61'),
+  _DialCodeOption('+84', 'VN +84'),
+  _DialCodeOption('+66', 'TH +66'),
+  _DialCodeOption('+63', 'PH +63'),
+  _DialCodeOption('+65', 'SG +65'),
+];
+
 class PasswordResetScreen extends ConsumerStatefulWidget {
   const PasswordResetScreen({super.key});
 
@@ -20,8 +39,9 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
 
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
+  final _phoneLocalController = TextEditingController();
   final _smsCodeController = TextEditingController();
+  String _selectedDialCode = '+82';
 
   bool _isLoading = false;
   bool _isSendingCode = false;
@@ -37,9 +57,18 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
   void dispose() {
     _cooldownTimer?.cancel();
     _emailController.dispose();
-    _phoneController.dispose();
+    _phoneLocalController.dispose();
     _smsCodeController.dispose();
     super.dispose();
+  }
+
+  String _buildE164Phone() {
+    final digits = _phoneLocalController.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return '';
+    if (_selectedDialCode == '+82' && digits.startsWith('0')) {
+      return '$_selectedDialCode${digits.substring(1)}';
+    }
+    return '$_selectedDialCode$digits';
   }
 
   void _startCooldown() {
@@ -64,7 +93,7 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
 
   Future<void> _sendVerificationCode() async {
     final emailError = _validateEmail(_emailController.text);
-    final phoneError = _validatePhone(_phoneController.text);
+    final phoneError = _validatePhone(_phoneLocalController.text);
 
     if (emailError != null || phoneError != null) {
       _formKey.currentState?.validate();
@@ -77,7 +106,7 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
     try {
       final authService = ref.read(authServiceProvider);
       await authService.startPasswordResetPhoneVerification(
-        phoneNumber: _phoneController.text.trim(),
+        phoneNumber: _buildE164Phone(),
         forceResendingToken: _resendToken,
         onCodeSent: (verificationId, resendToken) {
           if (!mounted) return;
@@ -133,7 +162,7 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
       final authService = ref.read(authServiceProvider);
       await authService.sendPasswordResetEmailWithPhone(
         email: _emailController.text.trim(),
-        phoneNumber: _phoneController.text.trim(),
+        phoneNumber: _buildE164Phone(),
         verificationId: _verificationId!,
         smsCode: _smsCodeController.text.trim(),
       );
@@ -168,7 +197,7 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
       return '휴대폰 번호를 입력해주세요';
     }
     final digits = value.replaceAll(RegExp(r'\D'), '');
-    if (digits.length < 10 || digits.length > 11) {
+    if (digits.length < 7 || digits.length > 12) {
       return '휴대폰 번호 형식을 확인해주세요';
     }
     return null;
@@ -260,16 +289,61 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
             enabled: !_isLoading,
           ),
           const SizedBox(height: 12),
-          TextFormField(
-            controller: _phoneController,
-            decoration: const InputDecoration(
-              labelText: '휴대폰 번호',
-              hintText: '01012345678',
-              prefixIcon: Icon(Icons.phone_android),
-            ),
-            keyboardType: TextInputType.phone,
-            validator: _validatePhone,
-            enabled: !_isLoading,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 104,
+                child: DropdownButtonFormField<String>(
+                  value: _selectedDialCode,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: '코드'),
+                  items:
+                      _dialCodeOptions
+                          .map(
+                            (item) => DropdownMenuItem<String>(
+                              value: item.code,
+                              child: Text(
+                                item.label,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                  selectedItemBuilder:
+                      (context) =>
+                          _dialCodeOptions
+                              .map(
+                                (item) => Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(item.code),
+                                ),
+                              )
+                              .toList(),
+                  onChanged:
+                      (_isLoading || _isSendingCode)
+                          ? null
+                          : (value) {
+                            if (value == null) return;
+                            setState(() => _selectedDialCode = value);
+                          },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextFormField(
+                  controller: _phoneLocalController,
+                  decoration: const InputDecoration(
+                    labelText: '휴대폰 번호',
+                    hintText: '1012345678',
+                    prefixIcon: Icon(Icons.phone_android),
+                  ),
+                  keyboardType: TextInputType.phone,
+                  validator: _validatePhone,
+                  enabled: !_isLoading,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Row(
@@ -390,7 +464,8 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
               _resendToken = null;
               _cooldownSeconds = 0;
               _emailController.clear();
-              _phoneController.clear();
+              _selectedDialCode = '+82';
+              _phoneLocalController.clear();
               _smsCodeController.clear();
             });
           },

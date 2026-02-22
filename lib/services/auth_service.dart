@@ -33,10 +33,12 @@ class AuthService {
     required String password,
   }) async {
     try {
-      return await _auth.createUserWithEmailAndPassword(
+      final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
+      await credential.user?.sendEmailVerification();
+      return credential;
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
     }
@@ -179,6 +181,12 @@ class AuthService {
 
   Future<void> refreshCurrentUser() async {
     await _auth.currentUser?.reload();
+  }
+
+  Future<void> sendCurrentUserEmailVerification() async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('사용자가 로그인하지 않았습니다');
+    await user.sendEmailVerification();
   }
 
   Future<void> startMfaEnrollment({
