@@ -3,6 +3,7 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:io';
 
 class MfaSignInRequiredException implements Exception {
@@ -123,8 +124,57 @@ class AuthService {
       );
       await callable.call(<String, String>{'email': normalizedEmail});
     } on FirebaseFunctionsException catch (e) {
+      debugPrint(
+        'requestPasswordReset failed: code=${e.code}, message=${e.message}',
+      );
       throw _handleFunctionsException(e);
     }
+  }
+
+  Future<void> sendPasswordResetEmailWithPhone({
+    required String email,
+    required String phoneNumber,
+    required String verificationId,
+    required String smsCode,
+  }) async {
+    try {
+      await FirebaseAppCheck.instance.getToken(true);
+
+      final callable = _functions.httpsCallable(
+        'requestPasswordResetWithPhone',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 25)),
+      );
+      await callable.call(<String, String>{
+        'email': email.trim(),
+        'phoneNumber': _normalizePhone(phoneNumber),
+        'verificationId': verificationId.trim(),
+        'smsCode': smsCode.trim(),
+      });
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint(
+        'requestPasswordResetWithPhone failed: code=${e.code}, message=${e.message}',
+      );
+      throw _handleFunctionsException(e);
+    }
+  }
+
+  Future<void> startPasswordResetPhoneVerification({
+    required String phoneNumber,
+    required void Function(String verificationId, int? resendToken) onCodeSent,
+    required void Function(String message) onVerificationFailed,
+    required Future<void> Function() onAutoVerified,
+    int? forceResendingToken,
+  }) async {
+    await _auth.verifyPhoneNumber(
+      phoneNumber: _normalizePhone(phoneNumber),
+      forceResendingToken: forceResendingToken,
+      verificationCompleted: (_) async {
+        await onAutoVerified();
+      },
+      verificationFailed: (e) => onVerificationFailed(_handleAuthException(e)),
+      codeSent: onCodeSent,
+      codeAutoRetrievalTimeout: (_) {},
+    );
   }
 
   Future<void> refreshCurrentUser() async {
@@ -314,11 +364,13 @@ class AuthService {
   String _handleFunctionsException(FirebaseFunctionsException e) {
     switch (e.code) {
       case 'invalid-argument':
-        return '올바른 이메일 주소를 입력해주세요.';
+        return e.message ?? '입력 정보가 올바르지 않습니다.';
       case 'unauthenticated':
         return '앱 검증(App Check)에 실패했습니다. 앱을 재실행한 뒤 다시 시도해주세요.';
       case 'resource-exhausted':
         return '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.';
+      case 'permission-denied':
+        return '계정 정보와 휴대폰 인증 정보가 일치하지 않습니다.';
       case 'failed-precondition':
         return '비밀번호 재설정 설정이 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.';
       case 'unavailable':
@@ -326,5 +378,19 @@ class AuthService {
       default:
         return '비밀번호 재설정 요청 중 오류가 발생했습니다.';
     }
+  }
+
+  String _normalizePhone(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return trimmed;
+
+    final hasPlus = trimmed.startsWith('+');
+    final digits = trimmed.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return trimmed;
+
+    if (hasPlus) return '+$digits';
+    if (digits.startsWith('00')) return '+${digits.substring(2)}';
+    if (digits.startsWith('0')) return '+82${digits.substring(1)}';
+    return '+$digits';
   }
 }

@@ -9,15 +9,24 @@ import 'app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+  const forceAppCheckDebug = bool.fromEnvironment(
+    'FORCE_APP_CHECK_DEBUG',
+    defaultValue: false,
+  );
+  debugPrint('kDebugMode=$kDebugMode');
+  debugPrint('forceAppCheckDebug=$forceAppCheckDebug');
   // Initialize Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   await FirebaseAppCheck.instance.activate(
     androidProvider:
-        kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+        (kDebugMode || forceAppCheckDebug)
+            ? AndroidProvider.debug
+            : AndroidProvider.playIntegrity,
     appleProvider:
-        kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
+        (kDebugMode || forceAppCheckDebug)
+            ? AppleProvider.debug
+            : AppleProvider.deviceCheck,
   );
   await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
 
