@@ -5,7 +5,9 @@ import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
 
 class MfaSetupScreen extends ConsumerStatefulWidget {
-  const MfaSetupScreen({super.key});
+  const MfaSetupScreen({super.key, this.initialPhone});
+
+  final String? initialPhone;
 
   @override
   ConsumerState<MfaSetupScreen> createState() => _MfaSetupScreenState();
@@ -23,6 +25,14 @@ class _MfaSetupScreenState extends ConsumerState<MfaSetupScreen> {
   int? _resendToken;
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.initialPhone != null && widget.initialPhone!.trim().isNotEmpty) {
+      _phoneController.text = _normalizePhoneNumber(widget.initialPhone!);
+    }
+  }
+
+  @override
   void dispose() {
     _phoneController.dispose();
     _codeController.dispose();
@@ -30,7 +40,16 @@ class _MfaSetupScreenState extends ConsumerState<MfaSetupScreen> {
   }
 
   String _normalizePhoneNumber(String value) {
-    return value.replaceAll(' ', '').trim();
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return trimmed;
+
+    final hasPlus = trimmed.startsWith('+');
+    final digits = trimmed.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return trimmed;
+    if (hasPlus) return '+$digits';
+    if (digits.startsWith('00')) return '+${digits.substring(2)}';
+    if (digits.startsWith('0')) return '+82${digits.substring(1)}';
+    return '+$digits';
   }
 
   Future<void> _sendCode() async {

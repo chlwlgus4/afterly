@@ -96,7 +96,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/mfa-setup',
-        builder: (context, state) => const MfaSetupScreen(),
+        builder:
+            (context, state) => MfaSetupScreen(
+              initialPhone: state.uri.queryParameters['phone'],
+            ),
       ),
       GoRoute(
         path: '/mfa-signin',

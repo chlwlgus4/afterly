@@ -14,6 +14,7 @@ class SignUpScreen extends ConsumerStatefulWidget {
 class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
@@ -23,9 +24,21 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   @override
   void dispose() {
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  String _normalizePhone(String input) {
+    final trimmed = input.trim();
+    final hasPlus = trimmed.startsWith('+');
+    final digits = trimmed.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return trimmed;
+    if (hasPlus) return '+$digits';
+    if (digits.startsWith('00')) return '+${digits.substring(2)}';
+    if (digits.startsWith('0')) return '+82${digits.substring(1)}';
+    return '+$digits';
   }
 
   Future<void> _signUp() async {
@@ -43,11 +56,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('회원가입이 완료되었습니다!'),
+            content: Text('회원가입이 완료되었습니다. 전화번호 인증을 진행해주세요.'),
             backgroundColor: AppColors.success,
           ),
         );
-        // Navigation is handled by authStateProvider in app.dart
+        context.go(
+          '/mfa-setup?phone=${Uri.encodeComponent(_normalizePhone(_phoneController.text))}',
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -125,6 +140,28 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               }
                               if (!value.contains('@')) {
                                 return '올바른 이메일 형식이 아닙니다';
+                              }
+                              return null;
+                            },
+                            enabled: !_isLoading,
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _phoneController,
+                            decoration: const InputDecoration(
+                              labelText: '휴대폰 번호 (+국가코드)',
+                              hintText: '+821012345678 또는 01012345678',
+                              prefixIcon: Icon(Icons.phone_android),
+                            ),
+                            keyboardType: TextInputType.phone,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return '휴대폰 번호를 입력해주세요';
+                              }
+                              final normalized = _normalizePhone(value);
+                              final regExp = RegExp(r'^\+[1-9]\d{7,14}$');
+                              if (!regExp.hasMatch(normalized)) {
+                                return '유효한 휴대폰 번호 형식이 아닙니다';
                               }
                               return null;
                             },
